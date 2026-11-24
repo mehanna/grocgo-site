@@ -1,5 +1,5 @@
 /* GrocGo's public site, in the app's own look: its near-black canvas with the navy and orange glows, the Orkney
-   family, the orange accent, the logo gradient, the icon's cart and the store dial's needle. Colours are the app's design tokens
+   family, the orange accent, the logo gradient, the icon's cart and the loading screen's flowing wordmark and colour slider. Colours are the app's design tokens
    (GrocGo/constants/shoppingListTokens.ts); the glows and the ring are the promo kit's (promo-images/kit.css). */
 
 @font-face { font-family: 'Orkney'; src: url('fonts/orkney-regular.otf') format('opentype'); font-weight: 400; font-display: swap; }
@@ -17,10 +17,10 @@
   --quiet: #B5AFA7;
   --muted: #8A857E;
   --accent: #FF6A1A;
-  --accent-glow: rgba(255, 106, 26, 0.7);
-  --hairline: rgba(255, 255, 255, 0.14);
-  --stop: rgba(255, 255, 255, 0.28);
-  --logo-gradient: linear-gradient(104.4deg, rgb(50, 70, 90) 0%, rgb(100, 80, 60) 40%, rgb(180, 120, 60) 60%, rgb(255, 200, 0) 80%, rgb(255, 255, 0) 100%);
+  --gold: rgb(255, 200, 0);
+  --hairline: rgba(255, 255, 255, 0.1);
+  /* One pass of the loading screen's wordmark colours and of its slider (StartupLoadingScreen: 3200 ms). */
+  --loading-loop: 3.2s;
   --intro: 2.75s;
   --rise-step: 140ms;
 }
@@ -59,21 +59,26 @@ a { color: var(--accent); }
 @keyframes drift-navy { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(14vmax, 6vmax, 0) scale(1.15); } }
 @keyframes drift-orange { from { transform: translate3d(-10vmax, 0, 0) scale(1); opacity: 0.65; } to { transform: translate3d(10vmax, -5vmax, 0) scale(1.2); opacity: 1; } }
 
-/* The wordmark: its shape (wordmark.png) filled with the logo gradient, with a light that sweeps across it. */
+/* The wordmark as the app's loading screen shows it: its shape (wordmark.png) with the logo colours flowing through
+   it from left to right. The strip behind the shape is two passes of the colours, each 1.4 times the word's width
+   (the word's own sweep, then room for the yellow to blend back into slate, as components/intro/Logo.tsx does), and
+   it slides along by one pass per loop. Standing still it shows the logo's own slate-to-yellow sweep. */
 .wordmark {
   position: relative;
+  overflow: hidden;
   aspect-ratio: 1239 / 251;
-  background: var(--logo-gradient);
   -webkit-mask: url('wordmark.png') center / contain no-repeat;
   mask: url('wordmark.png') center / contain no-repeat;
 }
-.wordmark::after {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 42%, rgba(255, 255, 255, 0.75) 50%, rgba(255, 255, 255, 0) 58%) no-repeat;
-  background-size: 300% 100%;
-  animation: sheen 6s ease-in-out infinite;
+.wordmark::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 280%;
+  background: linear-gradient(90deg,
+    rgb(50, 70, 90) 0%, rgb(100, 80, 60) 14.29%, rgb(180, 120, 60) 21.43%, rgb(255, 200, 0) 28.57%, rgb(255, 255, 0) 35.71%,
+    rgb(50, 70, 90) 50%, rgb(100, 80, 60) 64.29%, rgb(180, 120, 60) 71.43%, rgb(255, 200, 0) 78.57%, rgb(255, 255, 0) 85.71%,
+    rgb(50, 70, 90) 100%);
+  animation: flow var(--loading-loop) linear infinite;
 }
-@keyframes sheen { 0%, 35% { background-position: 150% 0; } 75%, 100% { background-position: -50% 0; } }
+@keyframes flow { from { transform: translateX(-50%); } }
 
 /* The cart of the app icon. With `drawn` it draws itself as the promo videos open: stroke by stroke, the wheels drop
    in, then the strokes thin and take their light rim (the icon's finish). Without it, it stands finished.
@@ -113,21 +118,26 @@ a { color: var(--accent); }
 .hero .wordmark { width: min(340px, 68vw); animation: wordmark-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 2.35s both; }
 @keyframes wordmark-in { from { opacity: 0; transform: translateY(14px) scale(0.8); } }
 
-.hero h1 { margin: 38px 0 0; font-weight: 700; font-size: clamp(30px, 6.4vw, 58px); line-height: 1.12; letter-spacing: -0.01em; }
+.hero h1 { margin: 30px 0 0; font-weight: 500; font-size: clamp(20px, 3.3vw, 30px); line-height: 1.3; letter-spacing: 0.01em; color: var(--text); }
 .hero h1 .line { display: block; }
-.accent { color: var(--accent); }
+/* The second line carries the slider's colours. */
+.accent { color: var(--accent); background: linear-gradient(90deg, var(--accent), var(--gold)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 
-/* The store dial from the app's list, as decoration: a hairline, its stops, and the needle moving between them. */
-.tuner { position: relative; width: min(420px, 78vw); height: 40px; margin-top: 40px; }
-.tuner::before { content: ''; position: absolute; left: 0; right: 0; top: 19px; height: 1px; background: linear-gradient(90deg, rgba(255, 255, 255, 0), var(--hairline) 15%, var(--hairline) 85%, rgba(255, 255, 255, 0)); }
-.tuner i { position: absolute; top: 16px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--stop); }
-.tuner i:nth-child(1) { left: 10%; }
-.tuner i:nth-child(2) { left: 30%; }
-.tuner i:nth-child(3) { left: 50%; }
-.tuner i:nth-child(4) { left: 70%; }
-.tuner i:nth-child(5) { left: 90%; }
-.needle { position: absolute; top: 6px; left: 10%; width: 2px; height: 28px; margin-left: -1px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 14px 3px var(--accent-glow); animation: tune 12s cubic-bezier(0.6, 0, 0.2, 1) infinite; }
-@keyframes tune { 0%, 14% { left: 10%; } 20%, 34% { left: 50%; } 40%, 54% { left: 30%; } 60%, 74% { left: 90%; } 80%, 94% { left: 70%; } 100% { left: 10%; } }
+/* The loading screen's colour slider: a short track, and a piece in the slider's colours that crosses it again and
+   again, fading in and out at the ends. */
+.slider { --track: 168px; --piece: 57px; position: relative; overflow: hidden; width: var(--track); height: 4px; margin-top: 34px; border-radius: 999px; background: var(--hairline); }
+.slider::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: var(--piece); border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--gold));
+  transform: translateX(calc((var(--track) - var(--piece)) / 2));
+  animation: slide var(--loading-loop) linear infinite;
+}
+@keyframes slide {
+  0% { transform: translateX(0); opacity: 0; }
+  14% { opacity: 1; }
+  86% { opacity: 1; }
+  100% { transform: translateX(calc(var(--track) - var(--piece))); opacity: 0; }
+}
 
 /* Support: a glass card inside the app's turning colour ring. */
 .support { position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 44px; padding: 18px 36px; border-radius: 26px; background: rgba(26, 26, 30, 0.72); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); text-decoration: none; }
