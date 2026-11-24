@@ -28,7 +28,7 @@
   --stop: rgba(255, 255, 255, 0.28);
   /* One pass of the colours through the wordmark, as on the app's startup screen (StartupLoadingScreen: 3200 ms). */
   --loading-loop: 3.2s;
-  --intro: 2.75s;
+  --intro: 3.75s;
   --rise-step: 140ms;
 }
 
@@ -107,19 +107,41 @@ html { background-color: var(--canvas); }
 }
 @keyframes flow { from { transform: translateX(-50%); } }
 
-/* The cart of the app icon. With `drawn` it draws itself as the promo videos open: stroke by stroke, the wheels drop
-   in, then the strokes thin to the icon's weight. Without it, it stands finished.
-   Every animation here only describes where a part starts from, so with motion off each part is simply in place. */
-.cart { display: block; height: auto; overflow: visible; --finish: 2.05s; }
+/* The cart of the app icon. With `drawn` it opens as the promo videos do: it draws itself stroke by stroke and the
+   wheels drop in; then the camera pushes in on the arrow's tip, the thick strokes come apart into three thin copies,
+   hang, snap back together at the icon's weight, and the camera pulls out again (the videos' hero zoom, --zoom-start
+   for --zoom-length). Without `drawn` the cart stands finished.
+   The cart turns about the arrow's tip, which the push-in carries to the middle of the drawing. Every animation here
+   only describes where a part starts from or passes through, so with motion off each part is simply in place. */
+.cart { display: block; height: auto; overflow: visible; transform-origin: 79.12% 42.94%; --zoom-start: 2s; --zoom-length: 1.7s; }
 .cart .ink path { fill: none; stroke: url(#cart-ink); stroke-width: 28.6; stroke-linecap: round; stroke-linejoin: round; }
 .cart .wheel { fill: url(#cart-ink); transform-box: fill-box; transform-origin: center; }
-.cart.drawn { animation: pop 0.7s ease-in-out var(--finish) both; }
-.cart.drawn .ink path { stroke-dasharray: 1 1; animation: draw var(--length) cubic-bezier(0.65, 0, 0.35, 1) var(--start) both, thin 0.5s ease-in-out var(--finish) both; }
+.cart .hair { fill: none; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.cart.drawn { animation: zoom var(--zoom-length) var(--zoom-start) both; }
+.cart.drawn .ink { animation: ink-away var(--zoom-length) linear var(--zoom-start) both; }
+.cart.drawn .ink path { stroke-dasharray: 1 1; animation: draw var(--length) cubic-bezier(0.65, 0, 0.35, 1) var(--start) both, thin var(--zoom-length) linear var(--zoom-start) both; }
 .cart.drawn .wheel { animation: drop 0.55s cubic-bezier(0.3, 1.5, 0.5, 1) var(--start) both; }
+.cart.drawn .hair { animation: split var(--zoom-length) linear var(--zoom-start) both; }
 @keyframes draw { from { stroke-dashoffset: 1; opacity: 0; } 4% { opacity: 1; } }
-@keyframes thin { from { stroke-width: 44; } }
 @keyframes drop { from { transform: translateY(-110%) scale(0.2); opacity: 0; } }
-@keyframes pop { 40% { transform: scale(1.1); } }
+/* The zoom's moments, as shares of its length: pushed in by 20.6%, apart by 38.2%, hanging until 52.9%, back together
+   by 61.8%, pulling out from 76.5%. */
+@keyframes zoom {
+  0% { transform: none; animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  20.6%, 76.5% { transform: translate(-29.12%, 7.06%) scale(3.2); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  100% { transform: none; }
+}
+/* The thick strokes give way to the thin copies, and come back at the icon's weight once the copies have closed. */
+@keyframes ink-away { 0%, 20.6% { opacity: 1; } 26.5%, 52.9% { opacity: 0; } 61.8%, 100% { opacity: 1; } }
+@keyframes thin { 0%, 52.8% { stroke-width: 44; } 52.9%, 100% { stroke-width: 28.6; } }
+/* Each thin copy slides away along the diagonal by its place (--shift: -1, 0 or 1), then springs back. */
+@keyframes split {
+  0%, 20.6% { opacity: 0; transform: none; animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1); }
+  25% { opacity: 1; }
+  38.2%, 52.9% { opacity: 1; transform: translate(calc(var(--shift) * 22.4px), calc(var(--shift) * -22.4px)); animation-timing-function: cubic-bezier(0.3, 1.4, 0.5, 1); }
+  59% { opacity: 1; }
+  61.8%, 100% { opacity: 0; transform: none; }
+}
 
 /* After the cart and the wordmark (--intro), each part of the home page rises into place in turn (--i). */
 .rise { animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--intro) + var(--i, 0) * var(--rise-step)) both; }
@@ -131,7 +153,8 @@ html { background-color: var(--canvas); }
 .mark { position: relative; width: clamp(104px, 22vw, 150px); margin-bottom: 22px; }
 .mark .cart { position: relative; width: 100%; }
 
-.hero .wordmark { width: min(340px, 68vw); animation: wordmark-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 2.35s both; }
+/* The wordmark comes up as the camera pulls out. */
+.hero .wordmark { width: min(340px, 68vw); animation: wordmark-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 3.3s both; }
 @keyframes wordmark-in { from { opacity: 0; transform: translateY(14px) scale(0.8); } }
 
 .hero h1 { margin: 24px 0 0; font-weight: 500; font-size: clamp(20px, 3.3vw, 30px); line-height: 1.3; letter-spacing: 0.01em; color: var(--text); }
