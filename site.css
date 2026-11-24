@@ -1,0 +1,166 @@
+/* GrocGo's public site, in the app's own look: its near-black canvas with the navy and orange glows, the Orkney
+   family, the orange accent, the logo gradient, the icon's cart and the store dial's needle. Colours are the app's design tokens
+   (GrocGo/constants/shoppingListTokens.ts); the glows and the ring are the promo kit's (promo-images/kit.css). */
+
+@font-face { font-family: 'Orkney'; src: url('fonts/orkney-regular.otf') format('opentype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Orkney'; src: url('fonts/orkney-medium.otf') format('opentype'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Orkney'; src: url('fonts/orkney-bold.otf') format('opentype'); font-weight: 700; font-display: swap; }
+
+/* The ring's angle is animated, which needs it declared as an angle; where that is unsupported the ring stands still. */
+@property --ring-angle { syntax: '<angle>'; initial-value: 210deg; inherits: false; }
+
+:root {
+  color-scheme: dark;
+  --canvas: #0E0E0F;
+  --tile: #1A1A1E;
+  --text: #F2F0EC;
+  --quiet: #B5AFA7;
+  --muted: #8A857E;
+  --accent: #FF6A1A;
+  --accent-glow: rgba(255, 106, 26, 0.7);
+  --hairline: rgba(255, 255, 255, 0.14);
+  --stop: rgba(255, 255, 255, 0.28);
+  --logo-gradient: linear-gradient(104.4deg, rgb(50, 70, 90) 0%, rgb(100, 80, 60) 40%, rgb(180, 120, 60) 60%, rgb(255, 200, 0) 80%, rgb(255, 255, 0) 100%);
+  --intro: 2.75s;
+  --rise-step: 140ms;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  color: var(--text);
+  background: var(--canvas) linear-gradient(180deg, #0D1019 0%, #0B0C0F 46%, #0A0A0B 100%) fixed;
+  font-family: 'Orkney', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+
+/* The two glows behind every page: navy from the top left, orange from the bottom. They drift slowly. */
+.glow { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.glow::before, .glow::after { content: ''; position: absolute; border-radius: 50%; will-change: transform; }
+.glow::before {
+  width: 120vmax; height: 70vmax; left: -40vmax; top: -36vmax;
+  background: radial-gradient(closest-side, rgba(34, 52, 90, 0.95) 0%, rgba(34, 52, 90, 0.35) 55%, rgba(34, 52, 90, 0) 100%);
+  animation: drift-navy 18s ease-in-out infinite alternate;
+}
+.glow::after {
+  width: 100vmax; height: 56vmax; left: calc(50% - 50vmax); bottom: -32vmax;
+  background: radial-gradient(closest-side, rgba(255, 106, 26, 0.3) 0%, rgba(255, 106, 26, 0) 100%);
+  animation: drift-orange 14s ease-in-out infinite alternate;
+}
+@keyframes drift-navy { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(14vmax, 6vmax, 0) scale(1.15); } }
+@keyframes drift-orange { from { transform: translate3d(-10vmax, 0, 0) scale(1); opacity: 0.65; } to { transform: translate3d(10vmax, -5vmax, 0) scale(1.2); opacity: 1; } }
+
+/* The wordmark: its shape (wordmark.png) filled with the logo gradient, with a light that sweeps across it. */
+.wordmark {
+  position: relative;
+  aspect-ratio: 1239 / 251;
+  background: var(--logo-gradient);
+  -webkit-mask: url('wordmark.png') center / contain no-repeat;
+  mask: url('wordmark.png') center / contain no-repeat;
+}
+.wordmark::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 42%, rgba(255, 255, 255, 0.75) 50%, rgba(255, 255, 255, 0) 58%) no-repeat;
+  background-size: 300% 100%;
+  animation: sheen 6s ease-in-out infinite;
+}
+@keyframes sheen { 0%, 35% { background-position: 150% 0; } 75%, 100% { background-position: -50% 0; } }
+
+/* The cart of the app icon. With `drawn` it draws itself as the promo videos open: stroke by stroke, the wheels drop
+   in, then the strokes thin and take their light rim (the icon's finish). Without it, it stands finished.
+   Every animation here only describes where a part starts from, so with motion off each part is simply in place. */
+.cart { display: block; height: auto; overflow: visible; --finish: 2.05s; }
+.cart .ink path { fill: none; stroke: url(#cart-ink); stroke-width: 28.6; stroke-linecap: round; stroke-linejoin: round; }
+.cart .wheel { fill: url(#cart-ink); transform-box: fill-box; transform-origin: center; }
+.cart .rim path, .cart .rim circle { fill: none; stroke: rgba(255, 208, 162, 0.85); stroke-linecap: round; stroke-linejoin: round; }
+.cart .rim path { stroke-width: 4.4; }
+.cart .rim circle { stroke-width: 3; }
+.cart.drawn { animation: pop 0.7s ease-in-out var(--finish) both; }
+.cart.drawn .ink path { stroke-dasharray: 1 1; animation: draw var(--length) cubic-bezier(0.65, 0, 0.35, 1) var(--start) both, thin 0.5s ease-in-out var(--finish) both; }
+.cart.drawn .wheel { animation: drop 0.55s cubic-bezier(0.3, 1.5, 0.5, 1) var(--start) both; }
+.cart.drawn .rim { animation: appear 0.5s ease-out var(--finish) both; }
+@keyframes draw { from { stroke-dashoffset: 1; opacity: 0; } 4% { opacity: 1; } }
+@keyframes thin { from { stroke-width: 44; } }
+@keyframes drop { from { transform: translateY(-110%) scale(0.2); opacity: 0; } }
+@keyframes appear { from { opacity: 0; } }
+@keyframes pop { 40% { transform: scale(1.1); } }
+
+/* After the cart and the wordmark (--intro), each part of the home page rises into place in turn (--i). */
+.rise { animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--intro) + var(--i, 0) * var(--rise-step)) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } }
+
+/* ---- Home ---- */
+.hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 56px 24px 32px; text-align: center; }
+
+.mark { position: relative; width: clamp(124px, 26vw, 170px); margin-bottom: 26px; }
+.mark::before {
+  content: ''; position: absolute; inset: -40%; border-radius: 50%; opacity: 0.75;
+  background: radial-gradient(closest-side, rgba(255, 106, 26, 0.34) 0%, rgba(255, 106, 26, 0) 100%);
+  animation: appear 1s ease-out 2.05s both, halo 4s ease-in-out 3.05s infinite;
+}
+.mark .cart { position: relative; width: 100%; }
+@keyframes halo { 0%, 100% { transform: scale(1); opacity: 0.75; } 50% { transform: scale(1.18); opacity: 1; } }
+
+.hero .wordmark { width: min(340px, 68vw); animation: wordmark-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 2.35s both; }
+@keyframes wordmark-in { from { opacity: 0; transform: translateY(14px) scale(0.8); } }
+
+.hero h1 { margin: 38px 0 0; font-weight: 700; font-size: clamp(30px, 6.4vw, 58px); line-height: 1.12; letter-spacing: -0.01em; }
+.hero h1 .line { display: block; }
+.accent { color: var(--accent); }
+
+/* The store dial from the app's list, as decoration: a hairline, its stops, and the needle moving between them. */
+.tuner { position: relative; width: min(420px, 78vw); height: 40px; margin-top: 40px; }
+.tuner::before { content: ''; position: absolute; left: 0; right: 0; top: 19px; height: 1px; background: linear-gradient(90deg, rgba(255, 255, 255, 0), var(--hairline) 15%, var(--hairline) 85%, rgba(255, 255, 255, 0)); }
+.tuner i { position: absolute; top: 16px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--stop); }
+.tuner i:nth-child(1) { left: 10%; }
+.tuner i:nth-child(2) { left: 30%; }
+.tuner i:nth-child(3) { left: 50%; }
+.tuner i:nth-child(4) { left: 70%; }
+.tuner i:nth-child(5) { left: 90%; }
+.needle { position: absolute; top: 6px; left: 10%; width: 2px; height: 28px; margin-left: -1px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 14px 3px var(--accent-glow); animation: tune 12s cubic-bezier(0.6, 0, 0.2, 1) infinite; }
+@keyframes tune { 0%, 14% { left: 10%; } 20%, 34% { left: 50%; } 40%, 54% { left: 30%; } 60%, 74% { left: 90%; } 80%, 94% { left: 70%; } 100% { left: 10%; } }
+
+/* Support: a glass card inside the app's turning colour ring. */
+.support { position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 44px; padding: 18px 36px; border-radius: 26px; background: rgba(26, 26, 30, 0.72); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); text-decoration: none; }
+.support::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none;
+  background: conic-gradient(from var(--ring-angle), #FF6A1A, #FFB547, #7DC58F, #33C6E8, #9A7BD4, #FF6A1A);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: ring 8s linear infinite;
+}
+@keyframes ring { to { --ring-angle: 570deg; } }
+.support small { color: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; }
+.support strong { color: var(--accent); font-size: clamp(17px, 4.6vw, 20px); font-weight: 500; }
+.support:hover strong, .support:focus-visible strong { color: #FF8A3D; }
+
+/* ---- A page of text (the privacy policy) ---- */
+.doc { flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: 40px 24px 24px; }
+.brand { display: inline-flex; align-items: center; gap: 14px; margin-bottom: 36px; text-decoration: none; }
+.brand .cart { width: 46px; }
+.brand .wordmark { width: 150px; }
+.doc h1 { margin: 0 0 12px; font-size: clamp(28px, 5vw, 38px); line-height: 1.2; }
+.doc h2 { margin: 36px 0 10px; font-size: 20px; }
+.doc p, .doc li { color: var(--quiet); font-size: 17px; }
+.doc strong { color: var(--text); font-weight: 500; }
+.doc ul { padding-left: 22px; }
+.doc .date { color: var(--muted); font-size: 15px; }
+
+footer { padding: 20px 24px 28px; color: var(--muted); font-size: 14px; text-align: center; }
+footer a { margin: 0 10px; color: var(--quiet); text-decoration: none; white-space: nowrap; }
+footer a:hover { color: var(--text); }
+footer p { margin: 10px 0 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+}
