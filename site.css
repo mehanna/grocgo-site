@@ -108,22 +108,17 @@ html { background-color: var(--canvas); }
 @keyframes flow { from { transform: translateX(-50%); } }
 
 /* The cart of the app icon. With `drawn` it draws itself as the promo videos open: stroke by stroke, the wheels drop
-   in, then the strokes thin and take their light rim (the icon's finish). Without it, it stands finished.
+   in, then the strokes thin to the icon's weight. Without it, it stands finished.
    Every animation here only describes where a part starts from, so with motion off each part is simply in place. */
 .cart { display: block; height: auto; overflow: visible; --finish: 2.05s; }
 .cart .ink path { fill: none; stroke: url(#cart-ink); stroke-width: 28.6; stroke-linecap: round; stroke-linejoin: round; }
 .cart .wheel { fill: url(#cart-ink); transform-box: fill-box; transform-origin: center; }
-.cart .rim path, .cart .rim circle { fill: none; stroke: rgba(255, 208, 162, 0.85); stroke-linecap: round; stroke-linejoin: round; }
-.cart .rim path { stroke-width: 4.4; }
-.cart .rim circle { stroke-width: 3; }
 .cart.drawn { animation: pop 0.7s ease-in-out var(--finish) both; }
 .cart.drawn .ink path { stroke-dasharray: 1 1; animation: draw var(--length) cubic-bezier(0.65, 0, 0.35, 1) var(--start) both, thin 0.5s ease-in-out var(--finish) both; }
 .cart.drawn .wheel { animation: drop 0.55s cubic-bezier(0.3, 1.5, 0.5, 1) var(--start) both; }
-.cart.drawn .rim { animation: appear 0.5s ease-out var(--finish) both; }
 @keyframes draw { from { stroke-dashoffset: 1; opacity: 0; } 4% { opacity: 1; } }
 @keyframes thin { from { stroke-width: 44; } }
 @keyframes drop { from { transform: translateY(-110%) scale(0.2); opacity: 0; } }
-@keyframes appear { from { opacity: 0; } }
 @keyframes pop { 40% { transform: scale(1.1); } }
 
 /* After the cart and the wordmark (--intro), each part of the home page rises into place in turn (--i). */
