@@ -1,5 +1,5 @@
 /* GrocGo's public site, in the app's own look: its near-black canvas with the navy and orange glows, the Orkney
-   family, the orange accent, the logo gradient, the icon's cart and the loading screen's flowing wordmark and colour slider. Colours are the app's design tokens
+   family, the orange accent, the logo gradient, the icon's cart, and a few of the app's own controls shown one at a time. Colours are the app's design tokens
    (GrocGo/constants/shoppingListTokens.ts); the glows and the ring are the promo kit's (promo-images/kit.css). */
 
 @font-face { font-family: 'Orkney'; src: url('fonts/orkney-regular.otf') format('opentype'); font-weight: 400; font-display: swap; }
@@ -12,14 +12,21 @@
 :root {
   color-scheme: dark;
   --canvas: #0E0E0F;
+  /* The backdrop's colour along the top and the bottom edge of the screen. The phone's own bars take these colours
+     (see .edge), so the page reads as one surface from edge to edge. */
+  --edge-top: #17233F;
+  --edge-bottom: #24140B;
+  --edge-band: 10px;
   --tile: #1A1A1E;
   --text: #F2F0EC;
   --quiet: #B5AFA7;
   --muted: #8A857E;
   --accent: #FF6A1A;
+  --accent-glow: rgba(255, 106, 26, 0.7);
   --gold: rgb(255, 200, 0);
-  --hairline: rgba(255, 255, 255, 0.1);
-  /* One pass of the loading screen's wordmark colours and of its slider (StartupLoadingScreen: 3200 ms). */
+  --hairline: rgba(255, 255, 255, 0.14);
+  --stop: rgba(255, 255, 255, 0.28);
+  /* One pass of the colours through the wordmark, as on the app's startup screen (StartupLoadingScreen: 3200 ms). */
   --loading-loop: 3.2s;
   --intro: 2.75s;
   --rise-step: 140ms;
@@ -35,7 +42,6 @@ body {
   flex-direction: column;
   overflow-x: hidden;
   color: var(--text);
-  background: var(--canvas) linear-gradient(180deg, #0D1019 0%, #0B0C0F 46%, #0A0A0B 100%) fixed;
   font-family: 'Orkney', -apple-system, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -43,19 +49,40 @@ body {
 
 a { color: var(--accent); }
 
-/* The two glows behind every page: navy from the top left, orange from the bottom. They drift slowly. */
-.glow { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-.glow::before, .glow::after { content: ''; position: absolute; border-radius: 50%; will-change: transform; }
-.glow::before {
-  width: 120vmax; height: 70vmax; left: -40vmax; top: -36vmax;
-  background: radial-gradient(closest-side, rgba(34, 52, 90, 0.95) 0%, rgba(34, 52, 90, 0.35) 55%, rgba(34, 52, 90, 0) 100%);
+/* The page's one colour belongs to html, and body has none: a colour on body would cover the backdrop, which sits
+   behind the page's content. */
+html { background-color: var(--canvas); }
+
+/* The backdrop behind every page, fixed to the screen: navy along the top edge, the canvas in the middle, a warm
+   dark orange along the bottom edge. Its first and last few pixels are flat, so the .edge strips that lie over them
+   cannot be seen. Two soft glows drift over it (.glow-drift), faded out towards the top and bottom edges so they
+   never change the colour there. */
+.glow {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, var(--edge-top) 0, var(--edge-top) var(--edge-band), #0D1019 34%, #0A0A0B 62%, var(--edge-bottom) calc(100% - var(--edge-band)), var(--edge-bottom) 100%);
+}
+.glow-drift {
+  position: absolute; inset: 0; overflow: hidden;
+  -webkit-mask: linear-gradient(180deg, rgba(0, 0, 0, 0) var(--edge-band), #000 30%, #000 70%, rgba(0, 0, 0, 0) calc(100% - var(--edge-band)));
+  mask: linear-gradient(180deg, rgba(0, 0, 0, 0) var(--edge-band), #000 30%, #000 70%, rgba(0, 0, 0, 0) calc(100% - var(--edge-band)));
+}
+.glow-drift::before, .glow-drift::after { content: ''; position: absolute; border-radius: 50%; will-change: transform; }
+.glow-drift::before {
+  width: 110vmax; height: 60vmax; left: -40vmax; top: -14vmax;
+  background: radial-gradient(closest-side, rgba(34, 52, 90, 0.7) 0%, rgba(34, 52, 90, 0.25) 55%, rgba(34, 52, 90, 0) 100%);
   animation: drift-navy 18s ease-in-out infinite alternate;
 }
-.glow::after {
-  width: 100vmax; height: 56vmax; left: calc(50% - 50vmax); bottom: -32vmax;
-  background: radial-gradient(closest-side, rgba(255, 106, 26, 0.3) 0%, rgba(255, 106, 26, 0) 100%);
+.glow-drift::after {
+  width: 100vmax; height: 50vmax; left: calc(50% - 50vmax); bottom: -10vmax;
+  background: radial-gradient(closest-side, rgba(255, 106, 26, 0.2) 0%, rgba(255, 106, 26, 0) 100%);
   animation: drift-orange 14s ease-in-out infinite alternate;
 }
+/* Safari on iPhone colours its status bar and its toolbar from whatever solid-coloured element is fixed to that edge
+   of the screen and can be touched there; without one it uses the page's single background colour. These two strips
+   give it the backdrop's edge colours. They lie over the page for that reason, on its empty top and bottom margins. */
+.edge { position: fixed; left: 0; right: 0; z-index: 1; height: var(--edge-band); }
+.edge.top { top: 0; background-color: var(--edge-top); }
+.edge.bottom { bottom: 0; background-color: var(--edge-bottom); }
 @keyframes drift-navy { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(14vmax, 6vmax, 0) scale(1.15); } }
 @keyframes drift-orange { from { transform: translate3d(-10vmax, 0, 0) scale(1); opacity: 0.65; } to { transform: translate3d(10vmax, -5vmax, 0) scale(1.2); opacity: 1; } }
 
@@ -104,9 +131,9 @@ a { color: var(--accent); }
 @keyframes rise { from { opacity: 0; transform: translateY(18px); } }
 
 /* ---- Home ---- */
-.hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 56px 24px 32px; text-align: center; }
+.hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: calc(40px + env(safe-area-inset-top, 0px)) 24px 24px; text-align: center; }
 
-.mark { position: relative; width: clamp(124px, 26vw, 170px); margin-bottom: 26px; }
+.mark { position: relative; width: clamp(104px, 22vw, 150px); margin-bottom: 22px; }
 .mark::before {
   content: ''; position: absolute; inset: -40%; border-radius: 50%; opacity: 0.75;
   background: radial-gradient(closest-side, rgba(255, 106, 26, 0.34) 0%, rgba(255, 106, 26, 0) 100%);
@@ -118,29 +145,72 @@ a { color: var(--accent); }
 .hero .wordmark { width: min(340px, 68vw); animation: wordmark-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 2.35s both; }
 @keyframes wordmark-in { from { opacity: 0; transform: translateY(14px) scale(0.8); } }
 
-.hero h1 { margin: 30px 0 0; font-weight: 500; font-size: clamp(20px, 3.3vw, 30px); line-height: 1.3; letter-spacing: 0.01em; color: var(--text); }
+.hero h1 { margin: 24px 0 0; font-weight: 500; font-size: clamp(20px, 3.3vw, 30px); line-height: 1.3; letter-spacing: 0.01em; color: var(--text); }
 .hero h1 .line { display: block; }
-/* The second line carries the slider's colours. */
+/* The second line runs from the app's orange into the logo's gold. */
 .accent { color: var(--accent); background: linear-gradient(90deg, var(--accent), var(--gold)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 
-/* The loading screen's colour slider: a short track, and a piece in the slider's colours that crosses it again and
-   again, fading in and out at the ends. */
-.slider { --track: 168px; --piece: 57px; position: relative; overflow: hidden; width: var(--track); height: 4px; margin-top: 34px; border-radius: 999px; background: var(--hairline); }
-.slider::before {
-  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: var(--piece); border-radius: 3px;
-  background: linear-gradient(90deg, var(--accent), var(--gold));
-  transform: translateX(calc((var(--track) - var(--piece)) / 2));
-  animation: slide var(--loading-loop) linear infinite;
+/* ---- The showcase: a few of the app's controls, one at a time, with no words (showcase.js turns the slides) ----
+   A slide waits unseen on the right, slides in, and leaves to the left. `is-waiting` puts a slide that left back on
+   the right without crossing the stage. */
+.showcase {
+  --slide-shift: 70%;
+  position: relative; overflow: hidden; width: min(420px, 86vw); height: 168px; margin-top: 18px;
+  -webkit-mask: linear-gradient(90deg, rgba(0, 0, 0, 0), #000 10%, #000 90%, rgba(0, 0, 0, 0));
+  mask: linear-gradient(90deg, rgba(0, 0, 0, 0), #000 10%, #000 90%, rgba(0, 0, 0, 0));
 }
-@keyframes slide {
-  0% { transform: translateX(0); opacity: 0; }
-  14% { opacity: 1; }
-  86% { opacity: 1; }
-  100% { transform: translateX(calc(var(--track) - var(--piece))); opacity: 0; }
-}
+.slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: translateX(var(--slide-shift)); transition: transform 0.8s cubic-bezier(0.65, 0, 0.35, 1), opacity 0.6s ease; }
+.slide.is-current { opacity: 1; transform: none; }
+.slide.is-leaving { transform: translateX(calc(-1 * var(--slide-shift))); }
+.slide.is-waiting { transition: none; }
+/* A grey bar stands where the app has words. */
+.word { display: block; height: 7px; border-radius: 4px; background: rgba(242, 240, 236, 0.5); }
+
+/* Slide: the list's store dial in its panel: the filter switch with its light, the hairline, its stops and the needle. */
+.panel { width: 84%; padding: 14px 18px 8px; border-radius: 22px; background: #111114; border: 1px solid rgba(255, 255, 255, 0.06); }
+.panel-top { display: flex; align-items: center; gap: 8px; height: 26px; }
+.panel-top .word { width: 44px; opacity: 0.5; }
+.panel-top .word.store { width: 62px; background: #9A7BD4; opacity: 1; }
+.panel-top .dot { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); }
+.switch { position: relative; width: 46px; height: 26px; margin-left: auto; border-radius: 13px; border: 1px solid #76402A; background: #29160F; animation: switch-track 8s ease-in-out infinite; }
+.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #FCFCFA; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); transform: translateX(20px); animation: switch-knob 8s ease-in-out infinite; }
+.switch-light { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px 3px var(--accent-glow); animation: switch-light 8s ease-in-out infinite; }
+@keyframes switch-track { 0%, 6% { background: #080809; border-color: #2C2C30; } 12%, 100% { background: #29160F; border-color: #76402A; } }
+@keyframes switch-knob { 0%, 6% { transform: none; } 12%, 100% { transform: translateX(20px); } }
+@keyframes switch-light { 0%, 6% { background: #38383D; box-shadow: none; } 12%, 100% { background: var(--accent); box-shadow: 0 0 10px 3px var(--accent-glow); } }
+.tuner { position: relative; height: 40px; margin-top: 6px; }
+.tuner::before { content: ''; position: absolute; left: 0; right: 0; top: 19px; height: 1px; background: linear-gradient(90deg, rgba(255, 255, 255, 0), var(--hairline) 15%, var(--hairline) 85%, rgba(255, 255, 255, 0)); }
+.tuner i { position: absolute; top: 16px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--stop); }
+.tuner i:nth-child(1) { left: 10%; }
+.tuner i:nth-child(2) { left: 30%; }
+.tuner i:nth-child(3) { left: 50%; }
+.tuner i:nth-child(4) { left: 70%; }
+.tuner i:nth-child(5) { left: 90%; }
+.needle { position: absolute; top: 6px; left: 10%; width: 2px; height: 28px; margin-left: -1px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 14px 3px var(--accent-glow); animation: tune 8s cubic-bezier(0.6, 0, 0.2, 1) infinite; }
+@keyframes tune { 0%, 14% { left: 10%; } 22%, 36% { left: 50%; } 44%, 58% { left: 30%; } 66%, 80% { left: 90%; } 88%, 94% { left: 70%; } 100% { left: 10%; } }
+
+/* Slide: the AI loading screen: food emoji tossed up from a glowing line, a few at a time (showcase.js moves them,
+   as components/Loading/EmojiToss.tsx does in the app). An emoji rests unseen on the line. */
+.toss { --toss-height: 100px; --emoji-size: 34px; --line-from-bottom: 34px; position: relative; width: 100%; height: 100%; }
+.toss-line { position: absolute; left: 22%; right: 22%; bottom: var(--line-from-bottom); height: 1px; background: #fff; box-shadow: 0 2px 5px rgba(255, 255, 255, 0.5); }
+.tossed { position: absolute; left: 50%; bottom: calc(var(--line-from-bottom) - var(--emoji-size) / 2); width: var(--emoji-size); margin-left: calc(var(--emoji-size) / -2); font-size: var(--emoji-size); line-height: 1; text-align: center; }
+.tossed i { display: block; font-style: normal; opacity: 0; }
+
+/* Slide: list rows being ticked off, one after the other: the ring fills, the tick lands, the name is struck out. */
+.rows { display: grid; gap: 8px; width: 84%; --tick-loop: 7s; }
+.row { display: flex; align-items: center; gap: 12px; height: 42px; padding: 0 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); }
+.tick { position: relative; flex: none; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--accent); animation: tick-fill var(--tick-loop) var(--turn) ease-in-out infinite both; }
+.tick::after { content: ''; position: absolute; left: 5px; top: 1.5px; width: 4px; height: 9px; border: solid var(--accent); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg) scale(0); animation: tick-mark var(--tick-loop) var(--turn) cubic-bezier(0.3, 1.5, 0.5, 1) infinite both; }
+.row .word { position: relative; width: var(--name); animation: tick-name var(--tick-loop) var(--turn) ease-in-out infinite both; }
+.row .word::after { content: ''; position: absolute; left: -5px; right: -5px; top: 2.5px; height: 2px; border-radius: 1px; background: var(--quiet); transform: scaleX(0); transform-origin: left; animation: tick-strike var(--tick-loop) var(--turn) ease-in-out infinite both; }
+.tag { width: 56px; height: 20px; margin-left: auto; border-radius: 7px; background: var(--tag, rgba(154, 123, 212, 0.25)); }
+@keyframes tick-fill { 0%, 6% { background: transparent; } 12%, 82% { background: #FCFCFA; } 90%, 100% { background: transparent; } }
+@keyframes tick-mark { 0%, 6% { transform: rotate(45deg) scale(0); } 13%, 82% { transform: rotate(45deg) scale(1); } 90%, 100% { transform: rotate(45deg) scale(0); } }
+@keyframes tick-name { 0%, 6% { opacity: 1; } 14%, 82% { opacity: 0.35; } 90%, 100% { opacity: 1; } }
+@keyframes tick-strike { 0%, 6% { transform: scaleX(0); } 14%, 82% { transform: scaleX(1); } 90%, 100% { transform: scaleX(0); } }
 
 /* Support: a glass card inside the app's turning colour ring. */
-.support { position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 44px; padding: 18px 36px; border-radius: 26px; background: rgba(26, 26, 30, 0.72); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); text-decoration: none; }
+.support { position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 22px; padding: 18px 36px; border-radius: 26px; background: rgba(26, 26, 30, 0.72); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); text-decoration: none; }
 .support::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none;
   background: conic-gradient(from var(--ring-angle), #FF6A1A, #FFB547, #7DC58F, #33C6E8, #9A7BD4, #FF6A1A);
@@ -155,7 +225,7 @@ a { color: var(--accent); }
 .support:hover strong, .support:focus-visible strong { color: #FF8A3D; }
 
 /* ---- A page of text (the privacy policy) ---- */
-.doc { flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: 40px 24px 24px; }
+.doc { flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: calc(40px + env(safe-area-inset-top, 0px)) 24px 24px; }
 .brand { display: inline-flex; align-items: center; gap: 14px; margin-bottom: 36px; text-decoration: none; }
 .brand .cart { width: 46px; }
 .brand .wordmark { width: 150px; }
@@ -166,7 +236,7 @@ a { color: var(--accent); }
 .doc ul { padding-left: 22px; }
 .doc .date { color: var(--muted); font-size: 15px; }
 
-footer { padding: 20px 24px 28px; color: var(--muted); font-size: 14px; text-align: center; }
+footer { padding: 16px 24px calc(24px + env(safe-area-inset-bottom, 0px)); color: var(--muted); font-size: 14px; text-align: center; }
 footer a { margin: 0 10px; color: var(--quiet); text-decoration: none; white-space: nowrap; }
 footer a:hover { color: var(--text); }
 footer p { margin: 10px 0 0; }
