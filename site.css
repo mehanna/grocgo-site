@@ -134,13 +134,7 @@ html { background-color: var(--canvas); }
 .hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: calc(40px + env(safe-area-inset-top, 0px)) 24px 24px; text-align: center; }
 
 .mark { position: relative; width: clamp(104px, 22vw, 150px); margin-bottom: 22px; }
-.mark::before {
-  content: ''; position: absolute; inset: -40%; border-radius: 50%; opacity: 0.75;
-  background: radial-gradient(closest-side, rgba(255, 106, 26, 0.34) 0%, rgba(255, 106, 26, 0) 100%);
-  animation: appear 1s ease-out 2.05s both, halo 4s ease-in-out 3.05s infinite;
-}
 .mark .cart { position: relative; width: 100%; }
-@keyframes halo { 0%, 100% { transform: scale(1); opacity: 0.75; } 50% { transform: scale(1.18); opacity: 1; } }
 
 .hero .wordmark { width: min(340px, 68vw); animation: wordmark-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 2.35s both; }
 @keyframes wordmark-in { from { opacity: 0; transform: translateY(14px) scale(0.8); } }
