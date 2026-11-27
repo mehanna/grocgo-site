@@ -463,7 +463,8 @@ function setupShareSteps() {
   const STEP_MS = 2200;
   let current = -1;
   let timer = null;
-  // A finger on the row takes over: the steps stop playing and stay where it puts them.
+  // A sideways swipe on the row takes over: the steps stop playing and stay where the finger puts them, until the row
+  // leaves the screen. Scrolling the page up or down with a finger on the row (it fills a phone's width) does not.
   let handedOver = false;
   const light = (index) => {
     current = index;
@@ -474,25 +475,42 @@ function setupShareSteps() {
       list.scrollTo({ left: step.offsetLeft - (list.clientWidth - step.offsetWidth) / 2, behavior: 'smooth' });
     }
   };
-  const handOver = () => {
-    if (handedOver) return;
-    handedOver = true;
+  const stop = () => {
     clearInterval(timer);
     timer = null;
     list.classList.remove('is-playing');
   };
-  list.addEventListener('touchstart', handOver, { passive: true });
+  const play = () => {
+    list.classList.add('is-playing');
+    light(0);
+    timer = setInterval(() => { if (!document.hidden) light((current + 1) % steps.length); }, STEP_MS);
+  };
+  const handOver = () => {
+    handedOver = true;
+    stop();
+  };
+  const SWIPE_POINTS = 10;
+  let touchStart = null;
+  list.addEventListener('touchstart', (event) => {
+    const touch = event.touches[0];
+    touchStart = { x: touch.clientX, y: touch.clientY };
+  }, { passive: true });
+  list.addEventListener('touchmove', (event) => {
+    if (!touchStart) return;
+    const touch = event.touches[0];
+    const across = Math.abs(touch.clientX - touchStart.x);
+    const down = Math.abs(touch.clientY - touchStart.y);
+    if (across > SWIPE_POINTS && across > down) handOver();
+    if (across > SWIPE_POINTS || down > SWIPE_POINTS) touchStart = null; // decided: a swipe along the row or a page scroll
+  }, { passive: true });
   list.addEventListener('wheel', (event) => { if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) handOver(); }, { passive: true });
   new IntersectionObserver(([entry]) => {
-    if (handedOver) return;
-    if (entry.isIntersecting && !timer) {
-      list.classList.add('is-playing');
-      light(0);
-      timer = setInterval(() => { if (!document.hidden) light((current + 1) % steps.length); }, STEP_MS);
-    } else if (!entry.isIntersecting && timer) {
-      clearInterval(timer);
-      timer = null;
+    if (!entry.isIntersecting) {
+      if (timer) stop();
+      handedOver = false; // back on screen later, it plays again
+      return;
     }
+    if (!handedOver && !timer) play();
   }, { threshold: 0.4 }).observe(list);
 }
 
