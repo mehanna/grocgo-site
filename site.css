@@ -38,8 +38,8 @@
   --hairline-strong: rgba(255, 255, 255, 0.16);
   /* The AI tools' rainbow rim (components/AI: the tool cards) and the support card's ring. */
   --rainbow: #FF6A1A, #FFB547, #7DC58F, #33C6E8, #9A7BD4, #FF6A1A;
-  --intro: 2.75s;
-  --rise-step: 140ms;
+  --intro: .12s;
+  --rise-step: 70ms;
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --page-width: 1180px;
   --section-space: clamp(96px, 14vw, 168px);
@@ -113,8 +113,8 @@ button { font: inherit; color: inherit; }
 /* The light line comes on with the finish, stays while the rest of the page arrives, and is gone at the end. */
 @keyframes rim { 0% { opacity: 0; } 20%, 75% { opacity: 1; } 100% { opacity: 0; } }
 
-/* After the cart and the wordmark (--intro), each part of the opening rises into place in turn (--i). */
-.rise { animation: rise 0.9s var(--ease-out) calc(var(--intro) + var(--i, 0) * var(--rise-step)) both; }
+/* The headline and actions arrive while the cart is drawing. */
+.rise { animation: rise .52s var(--ease-out) calc(var(--intro) + var(--i, 0) * var(--rise-step)) both; }
 @keyframes rise { from { opacity: 0; transform: translateY(18px); } }
 
 /* Further down, each part rises as it scrolls into view (site.js adds is-in). Without the script it simply shows. */
@@ -207,27 +207,53 @@ button { font: inherit; color: inherit; }
 .device-duo .flat-phone img { border-radius: 4.6%; }
 
 /* ---- The opening: pinned for its first stretch of scrolling (site.js sets --hero-progress, 0 to 1) ---- */
-.home > .hero { max-width: none; height: 190vh; padding: 0; }
+.home > .hero { max-width: none; height: 160vh; height: 160svh; padding: 0; }
 .hero-pin { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
 .device-hero { position: absolute; inset: 0; }
-.device-hero .flat-phone { top: calc(84% - var(--hero-progress, 0) * 34%); height: 70%; }
+.device-hero canvas { cursor: grab; transition-duration: .18s; }
+.device-hero .flat-phone {
+  top: var(--opening-centre, 72%); height: var(--opening-height, 48%); padding: 3px;
+  transform: translate(-50%, -50%) perspective(1100px) rotateY(-15deg) rotateZ(-3deg);
+}
 .hero-copy {
-  position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; padding: calc(56px + env(safe-area-inset-top, 0px)) 20px 0; text-align: center;
+  position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; padding: max(clamp(14px, 2.7svh, 30px), env(safe-area-inset-top)) 20px 0; text-align: center;
   opacity: calc(1 - var(--hero-progress, 0) * 1.8); transform: translateY(calc(var(--hero-progress, 0) * -70px)); pointer-events: none;
 }
-.hero-copy a { pointer-events: auto; }
-.mark { width: clamp(72px, 9vw, 92px); margin-bottom: 14px; }
+.hero-copy a, .hero-copy button { pointer-events: auto; }
+.mark { width: clamp(42px, 6.1svh, 65px); margin-bottom: 5px; }
 .mark .cart { width: 100%; }
-.hero .wordmark { width: min(260px, 60vw); animation: wordmark-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 2.35s both; }
+.hero .wordmark { width: clamp(142px, 21svh, 205px); animation: wordmark-in .6s var(--ease-out) var(--intro) both; }
 @keyframes wordmark-in { from { opacity: 0; transform: translateY(14px) scale(0.8); } }
-.hero h1 { margin: 20px 0 0; font-size: clamp(40px, 6vw, 80px); font-weight: 700; line-height: 1.02; letter-spacing: -0.02em; }
+.hero h1 { margin: 13px 0 0; font-size: clamp(34px, min(5.6vw, 7.3svh), 79px); font-weight: 700; line-height: 1.02; letter-spacing: -0.02em; }
 .hero h1 .line { display: block; }
-.hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 24px; }
-/* On a phone the words take most of the screen: one button (scrolling is the closer look), a smaller headline. */
+.hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: clamp(12px, 1.8svh, 22px); }
+.hero-actions .button { min-height: 45px; }
+.turn-iphone {
+  position: absolute; z-index: 3; left: 50%; bottom: max(7px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  display: none; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 0 14px;
+  border: 0; background: transparent; color: var(--quiet); font: 500 13px/1 'Orkney', sans-serif; cursor: pointer;
+}
+.device-hero.is-3d ~ .turn-iphone:not([hidden]) { display: inline-flex; }
+.turn-iphone span:first-child { color: var(--accent-light); font: 20px/1 system-ui, sans-serif; }
+.turn-iphone:hover { color: var(--text); }
+.turn-iphone:focus-visible { border-radius: 999px; }
+@media (max-width: 600px) {
+  .hero h1 { font-size: clamp(29px, 7.9vw, 42px); }
+  .hero .mark { width: clamp(33px, 5.5svh, 47px); }
+  .hero .wordmark { width: clamp(128px, 18.6svh, 164px); }
+  .hero-actions { margin-top: 12px; }
+  .hero-actions .button.primary { min-width: 0; padding-inline: 24px; }
+}
 @media (max-width: 480px) {
-  .hero h1 { font-size: 36px; }
   .hero-actions .button.quiet { display: none; }
-  .hero-actions .button.primary { min-width: 220px; }
+}
+@media (max-height: 470px) and (min-aspect-ratio: 1/1) {
+  .hero-copy { padding-top: max(8px, env(safe-area-inset-top)); }
+  .hero .mark { display: none; }
+  .hero .wordmark { width: 110px; }
+  .hero h1 { margin-top: 6px; font-size: 26px; }
+  .hero-actions { margin-top: 8px; }
+  .hero-actions .button { min-height: 36px; }
 }
 
 /* A play triangle, drawn in the background, for "Watch the film" and the film cards. */

@@ -32,7 +32,8 @@ import {
 } from './vendor/three.min.js';
 import { assetUrl } from './assets.js';
 
-const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
+const REDUCED_MOTION = motionPreference.matches;
 /** A phone or tablet, where the devices draw lighter. */
 const TOUCH_SCREEN = matchMedia('(hover: none) and (pointer: coarse)').matches;
 const SCREEN_FOLDER = 'screens/';
@@ -168,8 +169,8 @@ function createMaterials(finish) {
     plateau: new MeshPhysicalMaterial({ color: finish.metal, ...MATTE }),
     panel: new MeshPhysicalMaterial({ color: finish.panel, ...MATTE, roughness: 0.94 }),
     lensRing: new MeshPhysicalMaterial({ color: 0x0c0b0e, ...MATTE }),
-    // Lens glass is drawn unlit from its own picture, so it reads as deep glass from any angle.
-    lens: new MeshBasicMaterial({ map: lensGlassTexture() }),
+    // A soft reflection travels across the optical glass as the camera turns. Its element rings stay visible below.
+    lens: new MeshPhysicalMaterial({ map: lensGlassTexture(), roughness: 0.28, clearcoat: 0.65, clearcoatRoughness: 0.16, envMapIntensity: 0.45 }),
     dark: new MeshBasicMaterial({ color: 0x050407 }),
     flash: new MeshPhysicalMaterial({ color: 0xe8e1cf, metalness: 0, roughness: 0.55, emissive: 0x2a271f }),
   };
@@ -627,9 +628,9 @@ class Stage {
 
   /** Lets the pointer tilt the device as it moves over `area`, and dragging across the canvas turn it. */
   followPointer(area, { drag = false } = {}) {
-    if (REDUCED_MOTION) return;
     if (matchMedia('(hover: hover)').matches) {
       area.addEventListener('pointermove', (event) => {
+        if (motionPreference.matches) return;
         const box = area.getBoundingClientRect();
         this.tiltYaw.target = ((event.clientX - box.left) / box.width - 0.5) * 0.3;
         this.tiltPitch.target = ((event.clientY - box.top) / box.height - 0.5) * 0.16;
@@ -639,7 +640,7 @@ class Stage {
     if (!drag) return;
     let start = null;
     this.canvas.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || motionPreference.matches) return;
       start = { x: event.clientX, yaw: this.dragYaw.value };
       this.canvas.setPointerCapture(event.pointerId);
       this.canvas.classList.add('is-dragging');
@@ -657,6 +658,13 @@ class Stage {
     };
     this.canvas.addEventListener('pointerup', release);
     this.canvas.addEventListener('pointercancel', release);
+    motionPreference.addEventListener('change', () => {
+      if (!motionPreference.matches) return;
+      release();
+      this.tiltYaw.snap(0);
+      this.tiltPitch.snap(0);
+      this.dragYaw.snap(0);
+    });
   }
 
   /** The camera distance that fits a box of this width and height in the view, with room around it. */
@@ -687,6 +695,10 @@ export class PhoneStage extends Stage {
     this.margin = margin;
     this.phone = buildIPhone(this.materials, this.library);
     this.scene.add(this.phone.group);
+    // A broad falloff across the matte back separates the raised cameras from the case during the turn.
+    const cameraLight = new PointLight(0xdae8ee, 3.8, 0, 2);
+    cameraLight.position.set(-0.95, 1.05, 1.25);
+    this.scene.add(cameraLight);
     this.pose = { yaw: new Eased(0), pitch: new Eased(0), roll: new Eased(0), zoom: new Eased(1), focusX: new Eased(0), focusY: new Eased(0), drop: new Eased(0) };
     this.idle = !REDUCED_MOTION;
     this.focusPoint = new Vector3();

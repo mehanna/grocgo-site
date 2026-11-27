@@ -7,8 +7,6 @@ import { assetUrl } from './assets.js';
 const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** How long each screen of a feature stays before the next one. */
 const SCREEN_STAY_MS = 3200;
-/** The opening's cart and wordmark take this long (site.css --intro) before the phone turns into view. */
-const INTRO_MS = REDUCED_MOTION ? 0 : 2600;
 
 const readJson = (id) => {
   const element = document.getElementById(id);
@@ -69,13 +67,16 @@ function watchDrawing(container, canvas) {
   });
 }
 
-function phoneDisplay(container, devices, { margin } = {}) {
+function phoneDisplay(container, devices, { margin, onFirstPicture } = {}) {
   const flat = container.querySelector('.flat-phone img');
   if (devices) {
     try {
       const canvas = container.querySelector('canvas');
       const stage = new devices.PhoneStage(canvas, { margin });
-      stage.screen.onFirstPicture = () => container.classList.add('is-3d');
+      stage.screen.onFirstPicture = () => {
+        container.classList.add('is-3d');
+        onFirstPicture?.();
+      };
       watchDrawing(container, canvas);
       return {
         stage,
@@ -153,59 +154,111 @@ function setupNavigation() {
   update();
 }
 
-/**
- * The opening: it stays on screen for its first stretch of scrolling. The phone spins into view after the intro,
- * waiting low under the words; scrolling lifts it into the middle and turns it to face you while the words fade up.
- */
+/** The opening fits the whole iPhone under the download button, then lifts it into the middle as the words fade. */
 function setupHero(devices) {
   const hero = document.querySelector('.hero');
   const container = hero?.querySelector('[data-device="hero"]');
   if (!container) return;
-  const display = phoneDisplay(container, devices);
+  const pin = hero.querySelector('.hero-pin');
+  const copy = hero.querySelector('.hero-copy');
+  const button = hero.querySelector('.turn-iphone');
+  const label = button?.querySelector('.turn-label');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const margin = 1.12;
+  const display = phoneDisplay(container, devices, { margin, onFirstPicture: () => {
+    // Settle from a three-quarter view with the app already visible on the first frame.
+    turn = 0;
+    frame();
+  } });
   const screens = readJson('hero-screens');
-  display.preload(screens);
-  /** How far through its pinned stretch the opening is, 0 to 1. */
-  const progress = () => {
-    const box = hero.getBoundingClientRect();
-    return Math.min(1, Math.max(0, -box.top / Math.max(1, box.height - innerHeight)));
-  };
-  // At the top the phone waits low, under the words (lower on a phone, where the words take more of the screen).
-  const narrow = matchMedia('(max-width: 600px)');
-  const poseAt = (amount) => ({
-    yaw: -0.36 + 0.36 * amount, pitch: 0.16 - 0.14 * amount, drop: (narrow.matches ? 0.62 : 0.55) * (1 - amount), zoom: 0.8 + 0.16 * amount,
+  let turn = reduced.matches ? 0 : -.46;
+  let animation = 0;
+  let back = false;
+  let pose;
+  let lastProgress;
+  let visible = true;
+  let screen = 0;
+
+  function draw(instantly) {
+    display.setPose({ ...pose, yaw: pose.yaw + turn }, { instantly });
+  }
+
+  function frame(instantly = false) {
+    const height = pin.clientHeight;
+    const progress = Math.min(1, Math.max(0, -hero.getBoundingClientRect().top / Math.max(1, hero.offsetHeight - height)));
+    lastProgress = progress;
+    const top = copy.offsetHeight + 12;
+    const bottom = (button?.offsetTop || height - 51) - 7;
+    // Match the stage's width limit on tall phones. The flat fallback uses the same centre and height.
+    const model = display.stage?.phone;
+    const aspect = model ? model.width / model.height : .47;
+    const widthFit = Math.min(1, pin.clientWidth / height / (aspect * 1.3));
+    const startHeight = Math.min(Math.max(.12, (bottom - top) / height), .92 * widthFit);
+    const fraction = startHeight + (.86 * widthFit - startHeight) * progress;
+    const startCentre = (top + bottom) / (2 * height);
+    const centre = startCentre + (.49 - startCentre) * progress;
+    hero.style.setProperty('--hero-progress', progress.toFixed(3));
+    container.style.setProperty('--opening-height', `${fraction * 100}%`);
+    container.style.setProperty('--opening-centre', `${centre * 100}%`);
+    copy.inert = progress >= .56;
+    pose = { yaw: -.38 * (1 - progress), pitch: .12 - .1 * progress, roll: -.03 * (1 - progress),
+      zoom: fraction * margin / widthFit, drop: (centre - .5) / fraction };
+    draw(instantly || reduced.matches);
+  }
+
+  function updateLabel() {
+    if (label) label.textContent = reduced.matches ? (back ? 'Show front' : 'Show back') : 'Rotate iPhone';
+  }
+  button?.addEventListener('click', () => {
+    if (reduced.matches) {
+      back = !back;
+      turn = back ? Math.PI : 0;
+      updateLabel();
+      draw(true);
+      return;
+    }
+    if (animation) return;
+    const start = performance.now();
+    // Ease to the rear three-quarter view, then ease back to the app. Both joins have zero angular speed.
+    function rotate(now) {
+      const halves = Math.min(2, (now - start) / 1150);
+      const half = Math.floor(halves);
+      const t = halves - half;
+      turn = halves === 2 ? 0 : Math.PI * (half + t * t * (3 - 2 * t));
+      draw(true);
+      animation = halves < 2 ? requestAnimationFrame(rotate) : 0;
+    }
+    animation = requestAnimationFrame(rotate);
   });
-  let shownProgress = '';
-  const follow = () => {
-    const amount = progress();
-    // Past the opening the value stays at 1: leave the style alone, so scrolling further down restyles nothing.
-    const text = amount.toFixed(3);
-    if (text !== shownProgress) hero.style.setProperty('--hero-progress', text);
-    shownProgress = text;
-    return amount;
-  };
-  follow();
-  addEventListener('scroll', follow, { passive: true });
-  if (!display.stage) {
-    cycleScreens(screens, display.show);
-    return;
-  }
-  display.stage.followPointer(hero);
-  if (REDUCED_MOTION) {
-    display.setPose(poseAt(follow()), { instantly: true });
-    addEventListener('scroll', () => display.setPose(poseAt(progress()), { instantly: true }), { passive: true });
-    cycleScreens(screens, display.show);
-    return;
-  }
-  // It starts turned away and lower still, then spins round into place as the wordmark lands.
-  display.setPose({ yaw: -Math.PI * 1.2, pitch: 0.35, drop: 0.9, zoom: 0.8 }, { instantly: true });
-  display.show(screens[0]);
-  let introDone = false;
-  setTimeout(() => {
-    introDone = true;
-    display.setPose(poseAt(progress()));
-    setTimeout(() => cycleScreens(screens, display.show), SCREEN_STAY_MS);
-  }, INTRO_MS);
-  addEventListener('scroll', () => { if (introDone) display.setPose(poseAt(progress())); }, { passive: true });
+  reduced.addEventListener('change', () => {
+    cancelAnimationFrame(animation);
+    animation = 0;
+    back = false;
+    turn = 0;
+    if (display.stage) display.stage.idle = !reduced.matches;
+    updateLabel();
+    draw(true);
+  });
+
+  if (button) button.hidden = false;
+  updateLabel();
+  display.stage?.followPointer(container, { drag: true });
+  frame(true);
+  const sizeObserver = new ResizeObserver(() => frame(true));
+  sizeObserver.observe(pin);
+  sizeObserver.observe(copy);
+  addEventListener('scroll', () => {
+    if (lastProgress === 1 && hero.getBoundingClientRect().bottom <= pin.clientHeight) return;
+    frame();
+  }, { passive: true });
+  new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }).observe(pin);
+  display.preload(screens);
+  display.show(screens[screen]);
+  setInterval(() => {
+    if (!visible || document.hidden || reduced.matches || animation || container.querySelector('.is-dragging')) return;
+    screen = (screen + 1) % screens.length;
+    display.show(screens[screen]);
+  }, 4000);
 }
 
 /**
