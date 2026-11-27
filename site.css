@@ -376,7 +376,8 @@ button { font: inherit; color: inherit; }
 .share-steps.is-playing .share-step.is-current { opacity: 1; transform: translateY(-6px); }
 .share-step.is-current .step-number { background: var(--accent); border-color: transparent; color: var(--on-accent); }
 @media (max-width: 860px) {
-  .share-steps { display: flex; gap: 14px; overflow-x: auto; margin: 0 -20px; padding: 18px 20px 6px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  /* The active step lifts 6px and its number extends another 14px above the card. */
+  .share-steps { display: flex; gap: 14px; overflow-x: auto; margin: 0 -20px; padding: 28px 20px 6px; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .share-steps::-webkit-scrollbar { display: none; }
   .share-step { flex: none; width: min(62vw, 240px); scroll-snap-align: center; }
   .share-steps.is-playing .share-step { opacity: 1; }
