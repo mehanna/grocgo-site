@@ -48,12 +48,35 @@ function onFirstView(element, callback, threshold = 0.35) {
  * A phone display: the 3D iPhone when it can be drawn, else the flat screen in its outline. `margin` is the room
  * round the phone (1 fits it exactly).
  */
+/**
+ * A device's flat screen stands in only where the 3D one cannot draw (no WebGL, or the browser takes its drawing away);
+ * it never shows beside the 3D device, whose size and turn it cannot match.
+ */
+function useFlatScreen(container) {
+  container.classList.remove('is-3d');
+  container.classList.add('is-flat');
+}
+
+/** iOS Safari can take a page's 3D drawing away (memory, a long time in the background); the flat screen covers it. */
+function watchDrawing(container, canvas) {
+  canvas.addEventListener('webglcontextlost', () => {
+    console.warn('[GrocGo site] the browser took the 3D drawing away; showing the flat screen', container.dataset.device);
+    useFlatScreen(container);
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    container.classList.remove('is-flat');
+    container.classList.add('is-3d');
+  });
+}
+
 function phoneDisplay(container, devices, { margin } = {}) {
   const flat = container.querySelector('.flat-phone img');
   if (devices) {
     try {
-      const stage = new devices.PhoneStage(container.querySelector('canvas'), { margin });
+      const canvas = container.querySelector('canvas');
+      const stage = new devices.PhoneStage(canvas, { margin });
       stage.screen.onFirstPicture = () => container.classList.add('is-3d');
+      watchDrawing(container, canvas);
       return {
         stage,
         show: (name) => stage.screen.show(name),
@@ -64,6 +87,7 @@ function phoneDisplay(container, devices, { margin } = {}) {
       console.warn('[GrocGo site] the 3D phone could not start; showing the flat screen', error);
     }
   }
+  useFlatScreen(container);
   return { stage: null, show: (name) => { flat.src = assetUrl(`screens/${name}.webp`); }, preload: () => {}, setPose: () => {} };
 }
 
@@ -71,8 +95,10 @@ function duoDisplay(container, devices, { margin } = {}) {
   const flat = container.querySelector('.flat-phone img');
   if (devices) {
     try {
-      const stage = new devices.DuoStage(container.querySelector('canvas'), { margin });
+      const canvas = container.querySelector('canvas');
+      const stage = new devices.DuoStage(canvas, { margin });
       stage.duo.screens.innerRight.onFirstPicture = () => container.classList.add('is-3d');
+      watchDrawing(container, canvas);
       return {
         stage,
         setPosture: (posture) => stage.setPosture(posture),
@@ -84,6 +110,7 @@ function duoDisplay(container, devices, { margin } = {}) {
       console.warn('[GrocGo site] the 3D iPhone Duo could not start; showing the flat screen', error);
     }
   }
+  useFlatScreen(container);
   // Flat: the cover screen while it is more shut than open, the open screen after.
   let cover = null;
   let inner = null;
@@ -436,11 +463,28 @@ function setupShareSteps() {
   const STEP_MS = 2200;
   let current = -1;
   let timer = null;
+  // A finger on the row takes over: the steps stop playing and stay where it puts them.
+  let handedOver = false;
   const light = (index) => {
     current = index;
     steps.forEach((step, stepIndex) => step.classList.toggle('is-current', stepIndex === index));
+    // On a phone the row is wider than the screen: slide it so the playing step sits in the middle.
+    if (list.scrollWidth > list.clientWidth + 1) {
+      const step = steps[index];
+      list.scrollTo({ left: step.offsetLeft - (list.clientWidth - step.offsetWidth) / 2, behavior: 'smooth' });
+    }
   };
+  const handOver = () => {
+    if (handedOver) return;
+    handedOver = true;
+    clearInterval(timer);
+    timer = null;
+    list.classList.remove('is-playing');
+  };
+  list.addEventListener('touchstart', handOver, { passive: true });
+  list.addEventListener('wheel', (event) => { if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) handOver(); }, { passive: true });
   new IntersectionObserver(([entry]) => {
+    if (handedOver) return;
     if (entry.isIntersecting && !timer) {
       list.classList.add('is-playing');
       light(0);

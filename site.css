@@ -199,7 +199,10 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55); transition: opacity 0.8s ease;
 }
 .flat-phone img { display: block; width: 100%; height: 100%; border-radius: 11% / 5.2%; object-fit: cover; }
-.device.is-3d .flat-phone { opacity: 0; }
+/* With the page's script running, the flat screen waits hidden and shows only where the 3D device cannot draw
+   (site.js useFlatScreen): shown together, two phones of different sizes and turns overlap. */
+.js .device .flat-phone, .device.is-3d .flat-phone { opacity: 0; }
+.js .device.is-flat .flat-phone { opacity: 1; }
 .device-duo .flat-phone { height: auto; width: 88%; aspect-ratio: 2853 / 2007; border-radius: 6%; }
 .device-duo .flat-phone img { border-radius: 4.6%; }
 
@@ -302,7 +305,12 @@ button { font: inherit; color: inherit; }
 .arrival-note small { color: var(--quiet); font-size: 13px; }
 .arrival-arrow { width: 9px; height: 9px; margin-left: auto; border: solid var(--quiet); border-width: 2px 2px 0 0; transform: rotate(45deg); }
 .walk-in .mini-phone { width: min(280px, 100%); justify-self: center; }
-.is-arrived .mini-phone .screen-1 { opacity: 1; }
+/* It changes screen as the 3D phones do: the shown list dims away, then the next one lights up, so the two lists
+   (laid out differently) never show over each other. */
+.walk-in .mini-phone img { transition: opacity 0.28s ease; }
+.walk-in .mini-phone .screen-0 { transition-delay: 0.28s; }
+.walk-in.is-arrived .mini-phone .screen-0 { opacity: 0; transition-delay: 0s; }
+.walk-in.is-arrived .mini-phone .screen-1 { opacity: 1; transition-delay: 0.28s; }
 @media (max-width: 860px) {
   .walk-in { grid-template-columns: minmax(0, 1fr); }
   .walk-in .mini-phone { width: min(240px, 66vw); }

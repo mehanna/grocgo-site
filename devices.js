@@ -6,6 +6,7 @@
 import {
   ACESFilmicToneMapping,
   AmbientLight,
+  Box3,
   BoxGeometry,
   CylinderGeometry,
   DirectionalLight,
@@ -748,6 +749,9 @@ export class DuoStage extends Stage {
     this.yaw = new Eased(-0.3);
     this.pitch = new Eased(0.08);
     this.zoom = new Eased(1);
+    this.bounds = new Box3();
+    this.boundsCentre = new Vector3();
+    this.boundsSize = new Vector3();
   }
 
   setFold(open, { instantly = false } = {}) {
@@ -785,7 +789,7 @@ export class DuoStage extends Stage {
     const roll = this.roll.step(seconds);
     const fold = (1 - open) * Math.PI;
     this.duo.setFold(fold);
-    const { halfWidth, height } = this.duo;
+    const { halfWidth } = this.duo;
     // Keep the device centred as the left half swings over: open it spans both halves, shut only the right one.
     // The shift runs along the halves, so it turns with the device when it is held with the fold across.
     const shift = halfWidth / 2 * (1 - Math.cos(fold)) / 2;
@@ -793,12 +797,16 @@ export class DuoStage extends Stage {
     this.duo.group.rotation.z = roll;
     const sway = REDUCED_MOTION ? 0 : Math.sin(time * 0.55) * 0.04;
     this.holder.rotation.set(this.pitch.step(seconds) + this.tiltPitch.value, this.yaw.step(seconds) + sway + this.tiltYaw.value + this.dragYaw.value, 0, 'YXZ');
-    const spanWidth = halfWidth * (1 + Math.max(0, Math.cos(fold)));
-    const turned = Math.abs(Math.sin(roll));
-    const width = MathUtils.lerp(spanWidth, height, turned);
-    const tall = MathUtils.lerp(height, spanWidth, turned);
-    this.camera.position.set(0, 0, this.fitDistance(width * 1.08, tall, this.margin) / this.zoom.step(seconds));
-    this.camera.lookAt(0, 0, 0);
+    // The camera frames the device as it stands now, whatever its fold and turn: half-open with the fold across, the
+    // standing half rises well above the middle, so centring on the hinge would cut its top off on a short stage.
+    this.holder.updateMatrixWorld(true);
+    this.bounds.setFromObject(this.holder);
+    this.bounds.getCenter(this.boundsCentre);
+    this.bounds.getSize(this.boundsSize);
+    const distance = this.fitDistance(this.boundsSize.x, this.boundsSize.y, this.margin) / this.zoom.step(seconds);
+    // Measured from the device's nearest face, so its nearer parts, drawn larger, still fit.
+    this.camera.position.set(this.boundsCentre.x, this.boundsCentre.y, this.bounds.max.z + distance);
+    this.camera.lookAt(this.boundsCentre.x, this.boundsCentre.y, this.bounds.max.z);
     // The shadow of folding: nothing open flat, deepening as the halves close. The half that swings over darkens more
     // than the half that stays; both darken along the fold.
     const closing = Math.sin(fold / 2);
