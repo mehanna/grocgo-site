@@ -2,7 +2,7 @@
 // opening's iPhone, the feature tour, the film and the tours, the iPhone Duo, the watch, the gallery wall with its lightbox, and sharing.
 // The 3D devices come from devices.js; where WebGL is missing (or devices.js cannot load) the same parts drive the
 // flat screens the page already shows, so every feature stays visible.
-import { assetUrl } from './assets.js';
+import { assetUrl } from './assets.js?v=8c9e913a9eba';
 
 const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** How long each screen of a feature stays before the next one. */
@@ -1064,7 +1064,7 @@ function setupShareButton() {
 
 async function loadDevices() {
   try {
-    const devices = await import('./devices.js');
+    const devices = await import('./devices.js?v=ef74e0d5fc13');
     return devices.canDraw3D() ? devices : null;
   } catch (error) {
     console.warn('[GrocGo site] the 3D devices could not load; showing flat screens', error);

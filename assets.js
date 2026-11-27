@@ -1,5 +1,5 @@
-// Where the page finds a picture or video. The website serves them as files beside the page; the single-file copy
-// (bundle-single-file.mjs) carries them inside the page as data URLs, listed in window.GROCGO_INLINE_ASSETS.
+// The 3D and flat views use the same versioned screen URLs as the HTML. The single-file copy embeds its media.
+const screens = JSON.parse(document.getElementById('screen-urls')?.textContent ?? '{}');
 export function assetUrl(path) {
-  return window.GROCGO_INLINE_ASSETS?.[path] ?? path;
+  return window.GROCGO_INLINE_ASSETS?.[path] ?? screens[path] ?? path;
 }

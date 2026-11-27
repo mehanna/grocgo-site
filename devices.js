@@ -29,8 +29,8 @@ import {
   Vector2,
   Vector3,
   WebGLRenderer,
-} from './vendor/three.min.js';
-import { assetUrl } from './assets.js';
+} from './vendor/three.min.js?v=de798b619f8c';
+import { assetUrl } from './assets.js?v=8c9e913a9eba';
 
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 const REDUCED_MOTION = motionPreference.matches;
