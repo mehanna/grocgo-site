@@ -18,25 +18,29 @@ const readJson = (id) => {
  * Shows each name in turn, starting now, as show(name, index, first); returns a function that stops it. A hidden tab
  * keeps its place.
  */
-function cycleScreens(names, show, stayMs = SCREEN_STAY_MS) {
+function cycleScreens(names, show, element) {
   show(names[0], 0, true);
   if (names.length < 2) return () => {};
   let index = 0;
+  let visible = false;
+  const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; });
+  observer.observe(element);
   const timer = setInterval(() => {
-    if (document.hidden) return;
+    if (document.hidden || !visible) return;
     index = (index + 1) % names.length;
     show(names[index], index, false);
-  }, stayMs);
-  return () => clearInterval(timer);
+  }, SCREEN_STAY_MS);
+  return () => { clearInterval(timer); observer.disconnect(); };
 }
 
 /** Runs `callback` once, the first time `element` comes into view. */
-function onFirstView(element, callback, threshold = 0.35) {
+function onFirstView(element, callback, threshold = 0.35, rootMargin = '0px') {
+  if (!element) return;
   const observer = new IntersectionObserver((entries) => {
     if (!entries.some((entry) => entry.isIntersecting)) return;
     observer.disconnect();
     callback();
-  }, { threshold });
+  }, { threshold, rootMargin });
   observer.observe(element);
 }
 
@@ -113,18 +117,44 @@ function duoDisplay(container, devices, { margin } = {}) {
   }
   useFlatScreen(container);
   // Flat: the cover screen while it is more shut than open, the open screen after.
+  const frame = flat.parentElement;
   let cover = null;
   let inner = null;
   let open = 0;
+  let animation = 0;
   const draw = () => {
-    const name = open < 0.5 && cover ? cover : inner;
-    if (name) flat.src = assetUrl(`screens/${name}.webp`);
+    const onCover = open < 0.5 && Boolean(cover);
+    const name = onCover ? cover : inner;
+    frame.classList.toggle('is-cover', onCover);
+    const shadow = Math.cos(open * Math.PI / 2) ** 2;
+    frame.style.setProperty('--shadow-reach', shadow.toFixed(3));
+    if (name && flat.dataset.screen !== name) {
+      flat.dataset.screen = name;
+      flat.src = assetUrl(`screens/${name}.webp`);
+    }
   };
+  function setFold(next, { instantly = false } = {}) {
+    cancelAnimationFrame(animation);
+    if (instantly || matchMedia('(prefers-reduced-motion: reduce)').matches || next === open) {
+      open = next;
+      draw();
+      return;
+    }
+    const from = open;
+    const start = performance.now();
+    function move(now) {
+      const t = Math.min(1, (now - start) / 550);
+      open = from + (next - from) * t * t * (3 - 2 * t);
+      draw();
+      if (t < 1) animation = requestAnimationFrame(move);
+    }
+    animation = requestAnimationFrame(move);
+  }
   return {
     stage: null,
     setPosture: (posture) => { cover = posture.cover ?? null; draw(); },
     showInner: (name) => { inner = name; draw(); },
-    setFold: (next) => { open = next; draw(); },
+    setFold,
     openAmount: () => open,
   };
 }
@@ -163,12 +193,13 @@ function setupHero(devices) {
   const copy = hero.querySelector('.hero-copy');
   const button = hero.querySelector('.turn-iphone');
   const label = button?.querySelector('.turn-label');
+  const flat = container.querySelector('.flat-phone');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const margin = 1.12;
   const display = phoneDisplay(container, devices, { margin, onFirstPicture: () => {
     // Settle from a three-quarter view with the app already visible on the first frame.
     turn = 0;
-    frame();
+    measure();
   } });
   const screens = readJson('hero-screens');
   let turn = reduced.matches ? 0 : -.46;
@@ -176,6 +207,8 @@ function setupHero(devices) {
   let back = false;
   let pose;
   let lastProgress;
+  let scrollStart, scrollRange, widthFit, startHeight, startCentre;
+  let scrollFrame = 0;
   let visible = true;
   let screen = 0;
 
@@ -183,24 +216,36 @@ function setupHero(devices) {
     display.setPose({ ...pose, yaw: pose.yaw + turn }, { instantly });
   }
 
-  function frame(instantly = false) {
+  // Only a layout change needs DOM measurements. During scrolling the geometry comes from this cached viewport.
+  function measure(instantly = false) {
     const height = pin.clientHeight;
-    const progress = Math.min(1, Math.max(0, -hero.getBoundingClientRect().top / Math.max(1, hero.offsetHeight - height)));
-    lastProgress = progress;
+    if (!height || !pin.clientWidth) return;
+    scrollStart = hero.getBoundingClientRect().top + scrollY;
+    scrollRange = Math.max(1, hero.offsetHeight - height);
     const top = copy.offsetHeight + 12;
     const bottom = (button?.offsetTop || height - 51) - 7;
     // Match the stage's width limit on tall phones. The flat fallback uses the same centre and height.
     const model = display.stage?.phone;
     const aspect = model ? model.width / model.height : .47;
-    const widthFit = Math.min(1, pin.clientWidth / height / (aspect * 1.3));
-    const startHeight = Math.min(Math.max(.12, (bottom - top) / height), .92 * widthFit);
+    widthFit = Math.min(1, pin.clientWidth / height / (aspect * 1.3));
+    startHeight = Math.min(Math.max(.12, (bottom - top) / height), .92 * widthFit);
+    startCentre = (top + bottom) / (2 * height);
+    lastProgress = undefined;
+    frame(instantly);
+  }
+
+  function frame(instantly = false) {
+    const progress = Math.min(1, Math.max(0, (scrollY - scrollStart) / scrollRange));
+    if (progress === lastProgress) return;
+    lastProgress = progress;
     const fraction = startHeight + (.86 * widthFit - startHeight) * progress;
-    const startCentre = (top + bottom) / (2 * height);
     const centre = startCentre + (.49 - startCentre) * progress;
-    hero.style.setProperty('--hero-progress', progress.toFixed(3));
-    container.style.setProperty('--opening-height', `${fraction * 100}%`);
-    container.style.setProperty('--opening-centre', `${centre * 100}%`);
-    copy.inert = progress >= .56;
+    copy.style.setProperty('--hero-progress', progress.toFixed(3));
+    if (!display.stage || container.classList.contains('is-flat')) {
+      flat.style.setProperty('--opening-height', `${fraction * 100}%`);
+      flat.style.setProperty('--opening-centre', `${centre * 100}%`);
+    }
+    if (copy.inert !== (progress >= .56)) copy.inert = progress >= .56;
     pose = { yaw: -.38 * (1 - progress), pitch: .12 - .1 * progress, roll: -.03 * (1 - progress),
       zoom: fraction * margin / widthFit, drop: (centre - .5) / fraction };
     draw(instantly || reduced.matches);
@@ -243,13 +288,14 @@ function setupHero(devices) {
   if (button) button.hidden = false;
   updateLabel();
   display.stage?.followPointer(container, { drag: true });
-  frame(true);
-  const sizeObserver = new ResizeObserver(() => frame(true));
+  measure(true);
+  container.querySelector('canvas').addEventListener('webglcontextlost', () => measure(true));
+  const sizeObserver = new ResizeObserver(() => measure(true));
   sizeObserver.observe(pin);
   sizeObserver.observe(copy);
   addEventListener('scroll', () => {
-    if (lastProgress === 1 && hero.getBoundingClientRect().bottom <= pin.clientHeight) return;
-    frame();
+    if (scrollFrame || (lastProgress === 1 && scrollY >= scrollStart + scrollRange)) return;
+    scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; frame(); });
   }, { passive: true });
   new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }).observe(pin);
   display.preload(screens);
@@ -345,7 +391,7 @@ function setupTour(devices) {
       display.preload(stop.screens);
       display.setPose(narrow.matches ? { ...stop.pose, yaw: stop.pose.yaw * PHONE_TURN } : stop.pose);
       stopScreens();
-      stopScreens = cycleScreens(stop.screens, display.show);
+      stopScreens = cycleScreens(stop.screens, display.show, container);
       // Fetch the next stop's screens while this one plays.
       if (stops[index + 1]) display.preload(stops[index + 1].screens);
     },
@@ -375,12 +421,14 @@ function setupDuo(devices) {
   const sliderOpen = () => Number(slider.value) / SLIDER_MAX;
   let posture = postures[0];
   let run = { live: false };
-  let seen = false;
+  let visible = false;
+  let manual = false;
 
   /** Keeps the slider's knob on the Duo's hinge while the loop moves it. */
   const followFold = (current) => {
     if (!current.live) return;
-    slider.value = String(Math.round(display.openAmount() * SLIDER_MAX));
+    const value = String(Math.round(display.openAmount() * SLIDER_MAX));
+    if (slider.value !== value) slider.value = value;
     requestAnimationFrame(() => followFold(current));
   };
 
@@ -417,6 +465,11 @@ function setupDuo(devices) {
     }
   }
 
+  function syncPlayback() {
+    run.live = false;
+    if (visible && !document.hidden && !manual) play();
+  }
+
   setupExplorer(explorer, {
     // The slider sits in the open row (cooking mode, which rests half-open, has none).
     onOpen: (index, body) => {
@@ -424,12 +477,14 @@ function setupDuo(devices) {
       display.setPosture(posture);
       fold.hidden = Boolean(posture.laptop);
       body.append(fold);
-      if (seen) play();
+      manual = false;
+      syncPlayback();
     },
   });
 
   // Dragging the slider takes over from the loop; let go and it settles shut or open (only cooking rests half-open).
   slider.addEventListener('input', () => {
+    manual = true;
     run.live = false;
     display.setFold(sliderOpen());
   });
@@ -441,10 +496,11 @@ function setupDuo(devices) {
   display.showInner(posture.inner[0]);
   display.setFold(0, { instantly: true });
   slider.value = '0';
-  onFirstView(container, () => {
-    seen = true;
-    play();
-  }, 0.5);
+  new IntersectionObserver(([entry]) => {
+    visible = entry.isIntersecting;
+    syncPlayback();
+  }).observe(container);
+  document.addEventListener('visibilitychange', syncPlayback);
 }
 
 const wait = (milliseconds) => new Promise((resolve) => { setTimeout(resolve, milliseconds); });
@@ -475,26 +531,28 @@ function setupWalkIn() {
   const WALK_MS = 3200;
   const ARRIVED_MS = 4200;
   const REST_MS = 900;
+  let visible = false;
+  let running = false;
+  const canPlay = () => visible && !document.hidden;
   const walk = () => new Promise((resolve) => {
     const start = performance.now();
     const step = (now) => {
+      if (!canPlay()) { resolve(false); return; }
       const amount = Math.min(1, (now - start) / WALK_MS);
       place(amount < 0.5 ? 2 * amount * amount : 1 - (-2 * amount + 2) ** 2 / 2);
       if (amount < 1) requestAnimationFrame(step);
-      else resolve();
+      else resolve(true);
     };
     requestAnimationFrame(step);
   });
-  let visible = false;
-  let running = false;
   const run = async () => {
-    if (running) return;
+    if (running || !canPlay()) return;
     running = true;
-    while (visible) {
+    while (canPlay()) {
       stage.classList.remove('is-arrived');
       place(0);
       await wait(REST_MS);
-      await walk();
+      if (!canPlay() || !(await walk())) break;
       stage.classList.add('is-arrived');
       await wait(ARRIVED_MS);
     }
@@ -504,7 +562,8 @@ function setupWalkIn() {
   new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting;
     if (visible) run();
-  }, { threshold: 0.4 }).observe(stage);
+  }).observe(stage);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) run(); });
 }
 
 /** Share to GrocGo: the four steps light up one after another while the section is on screen. */
@@ -579,7 +638,7 @@ function setupWatch() {
     if (screen.getAttribute('src') === source) return;
     screen.classList.add('is-dim');
     setTimeout(() => { screen.src = source; screen.classList.remove('is-dim'); }, DIM_MS);
-  }));
+  }, watch));
   if (REDUCED_MOTION || !matchMedia('(hover: hover)').matches) return;
   section.addEventListener('pointermove', (event) => {
     const box = section.getBoundingClientRect();
@@ -663,6 +722,8 @@ function setupGalleryWall(wall, items, open) {
   wall.classList.add('is-wall');
 
   let columnWidth = 0;
+  let viewportWidth = 0;
+  let viewportHeight = 0;
   let gap = 0;
   let columns = [];
   const nodes = new Map();
@@ -672,6 +733,8 @@ function setupGalleryWall(wall, items, open) {
   let hovered = false;
   let drag = null;
   let last = 0;
+  let frameRequest = 0;
+  let scrollTimer = 0;
   let near = false;
   /** The one tile that plays each video, by gallery item. */
   const playingTiles = new Map();
@@ -679,7 +742,10 @@ function setupGalleryWall(wall, items, open) {
   const playTile = (video) => video.play().catch((error) => console.warn('[GrocGo site] a gallery video did not play', video.src.split('/').pop(), error.name));
 
   function layout() {
-    const narrow = wall.clientWidth < 700;
+    viewportWidth = wall.clientWidth;
+    viewportHeight = wall.clientHeight;
+    const narrow = viewportWidth < 700;
+    if (columnWidth === (narrow ? 150 : 232)) return;
     columnWidth = narrow ? 150 : 232;
     gap = narrow ? 12 : 20;
     columns = Array.from({ length: COLUMN_COUNT }, (_, column) => {
@@ -713,7 +779,7 @@ function setupGalleryWall(wall, items, open) {
       picture = document.createElement('video');
       Object.assign(picture, { src: assetUrl(`gallery/${entry.name}.mp4`), poster: assetUrl(`gallery/${entry.name}-tile.webp`), muted: true, loop: true, playsInline: true, preload: 'none' });
       picture.setAttribute('aria-hidden', 'true');
-      if (visible) playTile(picture);
+      if (visible && !scrollTimer && !document.hidden) playTile(picture);
     } else {
       picture = document.createElement('img');
       Object.assign(picture, { src: assetUrl(`gallery/${entry.name}-tile.webp`), alt: '', decoding: 'async', draggable: false });
@@ -729,30 +795,30 @@ function setupGalleryWall(wall, items, open) {
 
   function draw() {
     if (!near) return;
-    const width = wall.clientWidth;
-    const height = wall.clientHeight;
     const pitch = columnWidth + gap;
     const first = Math.floor(-offset.x / pitch) - 1;
-    const last = first + Math.ceil(width / pitch) + 2;
+    const last = first + Math.ceil(viewportWidth / pitch) + 2;
+    // Tile positions stay fixed in the wall. Pan their common layer once per frame.
+    layer.style.transform = `translate3d(${offset.x.toFixed(1)}px, ${offset.y.toFixed(1)}px, 0)`;
     const seen = new Set();
     for (let column = first; column <= last; column += 1) {
       const { tiles, period, stagger } = columns[modulo(column, COLUMN_COUNT)];
-      const x = column * pitch + offset.x;
       const columnTop = offset.y + stagger;
-      for (let round = Math.floor(-columnTop / period) - 1; columnTop + round * period < height; round += 1) {
+      for (let round = Math.floor(-columnTop / period) - 1; columnTop + round * period < viewportHeight; round += 1) {
         for (let index = 0; index < tiles.length; index += 1) {
           const tile = tiles[index];
           const y = columnTop + round * period + tile.top;
-          if (y > height || y + tile.height < 0) continue;
+          if (y > viewportHeight || y + tile.height < 0) continue;
           const key = `${column}:${round}:${index}`;
           seen.add(key);
           let node = nodes.get(key);
           if (!node) {
             node = tileNode(tile.item, tile.height);
+            node.style.left = `${column * pitch}px`;
+            node.style.top = `${stagger + round * period + tile.top}px`;
             nodes.set(key, node);
             layer.append(node);
           }
-          node.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
         }
       }
     }
@@ -777,10 +843,10 @@ function setupGalleryWall(wall, items, open) {
       offset.y += (velocity.y + DRIFT.y * drift) * seconds;
     }
     draw();
-    if (visible && !document.hidden) requestAnimationFrame(frame);
-    else last = 0;
+    frameRequest = visible && !document.hidden && !scrollTimer ? requestAnimationFrame(frame) : 0;
+    if (!frameRequest) last = 0;
   }
-  const start = () => { if (!last) requestAnimationFrame(frame); };
+  const start = () => { if (!frameRequest && !document.hidden && !scrollTimer) frameRequest = requestAnimationFrame(frame); };
 
   wall.addEventListener('pointerenter', () => { hovered = true; });
   wall.addEventListener('pointerleave', () => { hovered = false; });
@@ -847,16 +913,37 @@ function setupGalleryWall(wall, items, open) {
     }
   });
 
+  function setVideosPlaying(playing) {
+    for (const video of layer.querySelectorAll('video')) {
+      if (playing) playTile(video);
+      else video.pause();
+    }
+  }
+  // Let the page's vertical scroll finish before decoding videos or drifting the wall. The tile posters stay visible.
+  function waitForScroll() {
+    if (!visible || document.hidden) return;
+    if (!scrollTimer) setVideosPlaying(false);
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      scrollTimer = 0;
+      if (visible && !document.hidden) { setVideosPlaying(true); start(); }
+    }, 160);
+  }
+  addEventListener('scroll', waitForScroll, { passive: true });
   new ResizeObserver(() => { layout(); draw(); }).observe(wall);
   new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting;
-    for (const video of layer.querySelectorAll('video')) {
-      if (visible) playTile(video);
-      else video.pause();
+    if (visible) waitForScroll();
+    else {
+      clearTimeout(scrollTimer);
+      scrollTimer = 0;
+      setVideosPlaying(false);
     }
-    if (visible) start();
   }).observe(wall);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && visible) start(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) setVideosPlaying(false);
+    else if (visible) waitForScroll();
+  });
   // The tiles come in a screen ahead of the wall, so they are ready by the time it scrolls into view.
   new IntersectionObserver(([entry]) => {
     if (!entry.isIntersecting || near) return;
@@ -977,5 +1064,6 @@ setupGallery();
 setupShareButton();
 const devices = await loadDevices();
 setupHero(devices);
-setupTour(devices);
-setupDuo(devices);
+// Prepare each lower device ahead of its entrance, once its section is a viewport away.
+onFirstView(document.querySelector('#features'), () => setupTour(devices), 0, '100% 0px');
+onFirstView(document.querySelector('#duo'), () => setupDuo(devices), 0, '100% 0px');

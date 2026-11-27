@@ -205,6 +205,14 @@ button { font: inherit; color: inherit; }
 .js .device.is-flat .flat-phone { opacity: 1; }
 .device-duo .flat-phone { height: auto; width: 88%; aspect-ratio: 2853 / 2007; border-radius: 6%; }
 .device-duo .flat-phone img { border-radius: 4.6%; }
+.device-duo.is-flat .flat-phone { overflow: hidden; }
+.device-duo.is-flat .flat-phone.is-cover { width: auto; height: 86%; aspect-ratio: 1398 / 2034; }
+.device-duo.is-flat .flat-phone::after {
+  content: ''; position: absolute; inset: 0 0 0 50%; pointer-events: none; transform-origin: left;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .82), rgba(0, 0, 0, .56) 62%, transparent);
+  transform: scaleX(var(--shadow-reach, 0));
+}
+.device-duo.is-flat .flat-phone.is-cover::after { visibility: hidden; }
 
 /* ---- The opening: pinned for its first stretch of scrolling (site.js sets --hero-progress, 0 to 1) ---- */
 .home > .hero { max-width: none; height: 160vh; height: 160svh; padding: 0; }

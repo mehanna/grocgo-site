@@ -42,7 +42,8 @@ const POSE_RATE = REDUCED_MOTION ? 60 : 3.6;
 /** A screen dims to black and comes back lit with the next picture, like the app changing screens. */
 const SCREEN_DIM_SECONDS = REDUCED_MOTION ? 0 : 0.16;
 const SCREEN_LIGHT_SECONDS = REDUCED_MOTION ? 0 : 0.3;
-const MAX_PIXEL_RATIO = 2;
+const MAX_PIXEL_RATIO = TOUCH_SCREEN ? 1.5 : 2;
+const MAX_DRAWING_PIXELS = 1_500_000;
 const FIELD_OF_VIEW = 26;
 
 /** The iPhone 18 Pro Max: body, glass and screen (its 1320 x 2868 pixels). */
@@ -267,6 +268,7 @@ uniform float brightness;
 uniform vec2 pane;
 uniform float shade;
 uniform float crease;
+uniform float shadowReach;
 varying vec2 vUv;
 void main() {
   vec4 color = texture2D(current, vUv);
@@ -274,8 +276,16 @@ void main() {
   if (amount > 0.0 && from.x >= pane.x && from.x <= pane.y) color = mix(color, texture2D(next, from), amount);
   // Folding, a Duo screen falls into shadow: all of it by shade, and most of all along the fold (u = 0.5), where the
   // two halves close over each other, by crease. Open flat, and on every other screen, both are 0.
-  float creaseShadow = crease * exp(-abs(vUv.x - 0.5) / 0.14);
-  gl_FragColor = vec4(color.rgb * brightness * (1.0 - shade) * (1.0 - creaseShadow), 1.0);
+  float light = brightness * (1.0 - shade);
+  if (crease > 0.0) {
+    float distanceFromFold = 2.0 * abs(vUv.x - 0.5);
+    light *= 1.0 - crease * exp(-distanceFromFold / 0.28);
+    // The swinging half casts a soft-edged shadow on the stationary display. Its edge retreats to the hinge.
+    float penumbra = 0.12 + 0.16 * shadowReach;
+    float covered = 1.0 - smoothstep(shadowReach - penumbra, shadowReach + penumbra, distanceFromFold);
+    light *= 1.0 - 0.72 * smoothstep(0.0, 0.32, shadowReach) * covered;
+  }
+  gl_FragColor = vec4(color.rgb * light, 1.0);
   #include <colorspace_fragment>
 }`;
 
@@ -285,7 +295,7 @@ class Screen {
     this.library = library;
     this.uniforms = {
       current: { value: new Texture() }, next: { value: new Texture() }, amount: { value: 0 }, offset: { value: 0 },
-      brightness: { value: 0 }, pane: { value: new Vector2(pane[0], pane[1]) }, shade: { value: 0 }, crease: { value: 0 },
+      brightness: { value: 0 }, pane: { value: new Vector2(pane[0], pane[1]) }, shade: { value: 0 }, crease: { value: 0 }, shadowReach: { value: 0 },
     };
     this.material = new ShaderMaterial({ uniforms: this.uniforms, vertexShader: SCREEN_VERTEX_SHADER, fragmentShader: SCREEN_FRAGMENT_SHADER });
     this.object = new Group();
@@ -484,7 +494,6 @@ function buildDuo(materials, library) {
 
   // The left half hangs on the hinge, which sits level with the inner faces (half the gap above them).
   const hinge = new Group();
-  hinge.position.z = depth / 2 + gap / 2;
   const leftBody = new Mesh(slabGeometry({ width, height, depth, radius, bevel, corners: LEFT_HALF_CORNERS }), materials.frame);
   leftBody.position.set(-width / 2, 0, -depth / 2 - gap / 2);
   const leftGlass = new Mesh(glass(LEFT_HALF_CORNERS), materials.glass);
@@ -503,10 +512,15 @@ function buildDuo(materials, library) {
   cover.object.rotation.y = Math.PI;
   cover.object.position.set(-width / 2, 0, coverBack - 2 * LAYER);
   hinge.add(coverGlass, cover.object);
+  // Each half is rigid. Measure its case, glass and cameras once in its own local coordinates.
+  const leftBounds = new Box3().setFromObject(hinge);
+  const rightBounds = new Box3().setFromObject(right);
+  hinge.position.z = depth / 2 + gap / 2;
   group.add(hinge);
 
   // The spine: flush with the halves when open, wrapping both of them when shut.
   const spine = new Mesh(new CylinderGeometry(1, 1, height * 0.96, 40), materials.frame);
+  spine.geometry.computeBoundingBox();
   group.add(spine);
   // The crease: a dark line under the seam where the two halves of the open screen meet, so the lit metal of the
   // spine never shows through it.
@@ -522,14 +536,26 @@ function buildDuo(materials, library) {
     spine.position.z = MathUtils.lerp(0, depth / 2 + gap / 2, shut);
   }
   setFold(0);
-  return { group, screens: { innerLeft, innerRight, cover }, setFold, halfWidth: width, height };
+  const part = new Box3();
+  function measureBounds(bounds) {
+    right.updateWorldMatrix(true, false);
+    hinge.updateWorldMatrix(false, false);
+    spine.updateWorldMatrix(false, false);
+    bounds.copy(rightBounds).applyMatrix4(right.matrixWorld);
+    bounds.union(part.copy(leftBounds).applyMatrix4(hinge.matrixWorld));
+    bounds.union(part.copy(spine.geometry.boundingBox).applyMatrix4(spine.matrixWorld));
+  }
+  return { group, screens: { innerLeft, innerRight, cover }, setFold, measureBounds, halfWidth: width, height };
 }
 
 // ---------------------------------------------------------------- the stage: renderer, camera, lights, loop
 
 function lightScene(scene, renderer) {
   const environment = new PMREMGenerator(renderer);
-  scene.environment = environment.fromScene(new RoomEnvironment(), 0.04).texture;
+  const room = new RoomEnvironment();
+  // The matte cases need only broad reflections. Bake a small map once for this WebGL context.
+  scene.environment = environment.fromScene(room, 0.04, 0.1, 100, { size: 64 }).texture;
+  room.dispose();
   // Half the room's reflections: enough to show the shape, not a mirror.
   scene.environmentIntensity = 0.5;
   environment.dispose();
@@ -567,6 +593,7 @@ class Eased {
 
 const stages = new Set();
 let lastFrame = 0;
+let frameRequest = null;
 
 function loop(now) {
   const seconds = Math.min(0.05, lastFrame ? (now - lastFrame) / 1000 : 0);
@@ -577,14 +604,19 @@ function loop(now) {
     running = true;
     stage.frame(seconds, now / 1000);
   }
-  if (running && !document.hidden) requestAnimationFrame(loop);
-  else lastFrame = 0;
+  frameRequest = running && !document.hidden ? requestAnimationFrame(loop) : null;
+  if (frameRequest === null) lastFrame = 0;
 }
 
 function wake() {
-  if (!lastFrame) requestAnimationFrame(loop);
+  if (frameRequest === null && !document.hidden) frameRequest = requestAnimationFrame(loop);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) return wake();
+  cancelAnimationFrame(frameRequest);
+  frameRequest = null;
+  lastFrame = 0;
+});
 
 /** What every device's canvas shares: renderer, scene, camera, lights, size, visibility, pointer tilt and drag. */
 class Stage {
@@ -592,7 +624,6 @@ class Stage {
     this.canvas = canvas;
     // A phone's screen is sharp enough that smoothing the edges costs more than it shows; it keeps scrolling smooth.
     this.renderer = new WebGLRenderer({ canvas, antialias: !TOUCH_SCREEN, alpha: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.scene = new Scene();
@@ -620,7 +651,8 @@ class Stage {
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
     if (!width || !height) return;
-    this.renderer.setSize(width, height, false);
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO, Math.sqrt(MAX_DRAWING_PIXELS / (width * height)));
+    this.renderer.setDrawingBufferSize(width, height, pixelRatio);
     this.aspect = width / height;
     this.camera.aspect = this.aspect;
     this.camera.updateProjectionMatrix();
@@ -723,18 +755,19 @@ export class PhoneStage extends Stage {
   }
 
   update(seconds, time) {
-    const pose = Object.fromEntries(Object.entries(this.pose).map(([name, eased]) => [name, eased.step(seconds)]));
+    const { yaw, pitch, roll, drop, focusX, focusY, zoom } = this.pose;
     const sway = this.idle ? Math.sin(time * 0.6) * 0.045 : 0;
     const bob = this.idle ? Math.sin(time * 0.9) * 0.008 : 0;
     const { group, height, screenWidth, screenHeight } = this.phone;
-    group.rotation.set(pose.pitch + this.tiltPitch.value, pose.yaw + sway + this.tiltYaw.value + this.dragYaw.value, pose.roll, 'YXZ');
-    group.position.y = bob - pose.drop * height;
+    group.rotation.set(pitch.step(seconds) + this.tiltPitch.value, yaw.step(seconds) + sway + this.tiltYaw.value + this.dragYaw.value, roll.step(seconds), 'YXZ');
+    group.position.y = bob - drop.step(seconds) * height;
     group.updateMatrixWorld();
-    this.focusPoint.set(pose.focusX * screenWidth / 2, pose.focusY * screenHeight / 2, 0);
+    this.focusPoint.set(focusX.step(seconds) * screenWidth / 2, focusY.step(seconds) * screenHeight / 2, 0);
     group.localToWorld(this.focusPoint);
-    const distance = this.fitDistance(this.phone.width * 1.3, height, this.margin) / pose.zoom;
+    const magnification = zoom.step(seconds);
+    const distance = this.fitDistance(this.phone.width * 1.3, height, this.margin) / magnification;
     // Zoomed in, the camera centres on the focus; otherwise it stays on the stage's middle, so a dropped phone sits low.
-    const centring = MathUtils.clamp((pose.zoom - 1) / 0.4, 0, 1);
+    const centring = MathUtils.clamp((magnification - 1) / 0.4, 0, 1);
     this.camera.position.set(this.focusPoint.x * centring, this.focusPoint.y * centring, distance);
     this.camera.lookAt(this.camera.position.x, this.camera.position.y, 0);
     this.phone.screen.update(seconds);
@@ -811,8 +844,7 @@ export class DuoStage extends Stage {
     this.holder.rotation.set(this.pitch.step(seconds) + this.tiltPitch.value, this.yaw.step(seconds) + sway + this.tiltYaw.value + this.dragYaw.value, 0, 'YXZ');
     // The camera frames the device as it stands now, whatever its fold and turn: half-open with the fold across, the
     // standing half rises well above the middle, so centring on the hinge would cut its top off on a short stage.
-    this.holder.updateMatrixWorld(true);
-    this.bounds.setFromObject(this.holder);
+    this.duo.measureBounds(this.bounds);
     this.bounds.getCenter(this.boundsCentre);
     this.bounds.getSize(this.boundsSize);
     const distance = this.fitDistance(this.boundsSize.x, this.boundsSize.y, this.margin) / this.zoom.step(seconds);
@@ -822,12 +854,16 @@ export class DuoStage extends Stage {
     // The shadow of folding: nothing open flat, deepening as the halves close. The half that swings over darkens more
     // than the half that stays; both darken along the fold.
     const closing = Math.sin(fold / 2);
-    const { innerLeft, innerRight } = this.duo.screens;
+    const { innerLeft, innerRight, cover } = this.duo.screens;
     innerLeft.uniforms.shade.value = FOLD_SHADOW.swinging * closing;
     innerRight.uniforms.shade.value = FOLD_SHADOW.staying * closing;
     innerLeft.uniforms.crease.value = FOLD_SHADOW.crease * closing;
     innerRight.uniforms.crease.value = FOLD_SHADOW.crease * closing;
-    for (const screen of Object.values(this.duo.screens)) screen.update(seconds);
+    innerRight.uniforms.shadowReach.value = closing * closing;
+    cover.uniforms.shade.value = 0.38 * Math.sin(fold);
+    innerLeft.update(seconds);
+    innerRight.update(seconds);
+    cover.update(seconds);
   }
 }
 
