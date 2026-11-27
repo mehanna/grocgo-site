@@ -269,12 +269,14 @@ button { font: inherit; color: inherit; }
   .films li { flex: none; width: min(64vw, 260px); scroll-snap-align: center; }
 }
 
-/* ---- A phone drawn flat (the walk-in and the share steps): its screens stacked, the first on top ---- */
+/* ---- A phone drawn flat (the walk-in and the share steps): its screens stacked in one grid cell, each later one over
+   the one before. The bezel is padding, which is a share of the width on every side, so it is as thick at the top and
+   bottom as at the sides; the screens keep the phone's own shape inside it. ---- */
 .mini-phone {
-  position: relative; aspect-ratio: 1320 / 2868; padding: 2.2%; border-radius: 15% / 7%; background: #0b0b0d;
+  position: relative; display: grid; padding: 2.2%; border-radius: 15% / 7%; background: #0b0b0d;
   border: 2px solid #46464d; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
 }
-.mini-phone img { position: absolute; inset: 2.2%; width: 95.6%; height: 95.6%; border-radius: 13% / 6%; object-fit: cover; transition: opacity 0.5s ease; }
+.mini-phone img { grid-area: 1 / 1; display: block; width: 100%; height: auto; aspect-ratio: 1320 / 2868; border-radius: 13% / 6%; object-fit: cover; transition: opacity 0.5s ease; }
 .mini-phone .screen-1 { opacity: 0; }
 
 /* ---- Walk in: a little map, a walk into Whole Foods, the note, and the list switching (site.js) ---- */
