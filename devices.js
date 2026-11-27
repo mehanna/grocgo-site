@@ -32,6 +32,8 @@ import {
 import { assetUrl } from './assets.js';
 
 const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** A phone or tablet, where the devices draw lighter. */
+const TOUCH_SCREEN = matchMedia('(hover: none) and (pointer: coarse)').matches;
 const SCREEN_FOLDER = 'screens/';
 /** How fast a device eases into a new pose (per second); higher is snappier. */
 const POSE_RATE = REDUCED_MOTION ? 60 : 3.6;
@@ -586,7 +588,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) wake
 class Stage {
   constructor(canvas, finish) {
     this.canvas = canvas;
-    this.renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    // A phone's screen is sharp enough that smoothing the edges costs more than it shows; it keeps scrolling smooth.
+    this.renderer = new WebGLRenderer({ canvas, antialias: !TOUCH_SCREEN, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.outputColorSpace = SRGBColorSpace;

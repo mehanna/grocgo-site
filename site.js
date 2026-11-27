@@ -147,9 +147,13 @@ function setupHero(devices) {
   const poseAt = (amount) => ({
     yaw: -0.36 + 0.36 * amount, pitch: 0.16 - 0.14 * amount, drop: (narrow.matches ? 0.62 : 0.55) * (1 - amount), zoom: 0.8 + 0.16 * amount,
   });
+  let shownProgress = '';
   const follow = () => {
     const amount = progress();
-    hero.style.setProperty('--hero-progress', amount.toFixed(3));
+    // Past the opening the value stays at 1: leave the style alone, so scrolling further down restyles nothing.
+    const text = amount.toFixed(3);
+    if (text !== shownProgress) hero.style.setProperty('--hero-progress', text);
+    shownProgress = text;
     return amount;
   };
   follow();
@@ -526,6 +530,9 @@ function createLightbox(dialog, items, { show, caption }) {
 /**
  * The wall: columns of tiles that run on forever in every direction. It drifts slowly by itself, follows a drag
  * (with a little glide after), sideways scrolling and the arrow keys. A tap opens the lightbox.
+ *
+ * It stays light on a phone: no tile exists until the wall is about a screen away, and each video plays in one tile
+ * at a time (its other copies show its still), so the page does not fetch and decode the same video over and over.
  */
 function setupGalleryWall(wall, items, open) {
   /** Tile heights as a share of their width, dealt out in turn so neighbours differ. */
@@ -550,6 +557,11 @@ function setupGalleryWall(wall, items, open) {
   let hovered = false;
   let drag = null;
   let last = 0;
+  let near = false;
+  /** The one tile that plays each video, by gallery item. */
+  const playingTiles = new Map();
+  /** A tile's video can be refused (Low Power Mode stops muted videos playing by themselves): its still stays. */
+  const playTile = (video) => video.play().catch((error) => console.warn('[GrocGo site] a gallery video did not play', video.src.split('/').pop(), error.name));
 
   function layout() {
     const narrow = wall.clientWidth < 700;
@@ -569,6 +581,7 @@ function setupGalleryWall(wall, items, open) {
     });
     for (const node of nodes.values()) node.remove();
     nodes.clear();
+    playingTiles.clear();
   }
 
   function tileNode(item, height) {
@@ -580,10 +593,12 @@ function setupGalleryWall(wall, items, open) {
     node.style.height = `${height}px`;
     const entry = items[item];
     let picture;
-    if (entry.kind === 'video' && !REDUCED_MOTION) {
+    if (entry.kind === 'video' && !REDUCED_MOTION && !playingTiles.has(item)) {
+      playingTiles.set(item, node);
       picture = document.createElement('video');
-      Object.assign(picture, { src: assetUrl(`gallery/${entry.name}.mp4`), poster: assetUrl(`gallery/${entry.name}-tile.webp`), muted: true, loop: true, playsInline: true, autoplay: true, preload: 'metadata' });
+      Object.assign(picture, { src: assetUrl(`gallery/${entry.name}.mp4`), poster: assetUrl(`gallery/${entry.name}-tile.webp`), muted: true, loop: true, playsInline: true, preload: 'none' });
       picture.setAttribute('aria-hidden', 'true');
+      if (visible) playTile(picture);
     } else {
       picture = document.createElement('img');
       Object.assign(picture, { src: assetUrl(`gallery/${entry.name}-tile.webp`), alt: '', decoding: 'async', draggable: false });
@@ -598,6 +613,7 @@ function setupGalleryWall(wall, items, open) {
   }
 
   function draw() {
+    if (!near) return;
     const width = wall.clientWidth;
     const height = wall.clientHeight;
     const pitch = columnWidth + gap;
@@ -629,6 +645,8 @@ function setupGalleryWall(wall, items, open) {
       if (seen.has(key)) continue;
       node.remove();
       nodes.delete(key);
+      const item = Number(node.dataset.index);
+      if (playingTiles.get(item) === node) playingTiles.delete(item);
     }
   }
 
@@ -718,12 +736,18 @@ function setupGalleryWall(wall, items, open) {
   new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting;
     for (const video of layer.querySelectorAll('video')) {
-      if (visible) video.play().catch(() => {});
+      if (visible) playTile(video);
       else video.pause();
     }
     if (visible) start();
   }).observe(wall);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && visible) start(); });
+  // The tiles come in a screen ahead of the wall, so they are ready by the time it scrolls into view.
+  new IntersectionObserver(([entry]) => {
+    if (!entry.isIntersecting || near) return;
+    near = true;
+    draw();
+  }, { rootMargin: '100% 0px' }).observe(wall);
   layout();
   draw();
 }

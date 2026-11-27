@@ -154,6 +154,13 @@ button { font: inherit; color: inherit; }
   transform: translate(-50%, -140%); opacity: 0; transition: transform 0.55s var(--ease-out), opacity 0.4s ease;
 }
 .nav-on .site-nav { transform: translate(-50%, 0); opacity: 1; }
+/* On a phone, Safari re-blurs whatever moves under a frosted surface on every frame of a scroll; there the bar and the
+   quiet buttons are a deeper tint instead, which looks the same over this dark page. */
+@media (hover: none) and (pointer: coarse) {
+  .site-nav { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(17, 17, 20, 0.94); }
+  .button.quiet { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(38, 38, 44, 0.9); }
+  .film .film-play { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(20, 20, 23, 0.82); }
+}
 .nav-brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
 .nav-brand .cart { width: 30px; }
 .nav-brand .wordmark { width: 116px; }
