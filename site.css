@@ -1,6 +1,7 @@
-/* GrocGo's public site, in the app's own look: its near-black canvas with the navy and orange glows, the Orkney
-   family, the orange accent, the logo gradient, the icon's cart, and a few of the app's own controls shown one at a time. Colours are the app's design tokens
-   (GrocGo/constants/shoppingListTokens.ts); the glows and the ring are the promo kit's (promo-images/kit.css). */
+/* GrocGo's public site, in the app's own look: its near-black canvas between a navy and a warm edge, the Orkney
+   family, the orange accent, the logo gradient, the icon's cart, the AI tools' rainbow rim and the promo images'
+   headlines (a small tag, two lines, the second in the accent). Colours are the app's design tokens
+   (GrocGo/constants/shoppingListTokens.ts); the ring is the promo kit's (promo-images/kit.css). */
 
 @font-face { font-family: 'Orkney'; src: url('fonts/orkney-regular.otf') format('opentype'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Orkney'; src: url('fonts/orkney-medium.otf') format('opentype'); font-weight: 500; font-display: swap; }
@@ -14,25 +15,40 @@
   --canvas: #0E0E0F;
   /* The backdrop's colour along the top and the bottom edge of the screen. The phone's own bars take these colours
      (see .edge), so the page reads as one surface from edge to edge. */
-  --edge-top: #17233F;
-  --edge-bottom: #24140B;
+  /* A hint of navy at the top fading into near-black (the owner picked it from five: the earlier navy and warm
+     brown were too much colour). */
+  --edge-top: #141A28;
+  --edge-bottom: #0B0B0C;
+  /* The backdrop between the edges: its colour a third of the way down and two thirds of the way down. */
+  --backdrop-upper: #0F121A;
+  --backdrop-lower: #0B0B0D;
   --edge-band: 10px;
+  --panel: #111114;
   --tile: #1A1A1E;
+  --tile-raised: #232328;
   --text: #F2F0EC;
   --quiet: #B5AFA7;
   --muted: #8A857E;
   --accent: #FF6A1A;
-  --accent-glow: rgba(255, 106, 26, 0.7);
+  --accent-light: #FF8A3D;
+  --eyebrow: #FF9B61;
+  --on-accent: #1F0D04;
   --gold: rgb(255, 200, 0);
-  --hairline: rgba(255, 255, 255, 0.14);
-  --stop: rgba(255, 255, 255, 0.28);
-  /* One pass of the colours through the wordmark, as on the app's startup screen (StartupLoadingScreen: 3200 ms). */
-  --loading-loop: 3.2s;
+  --hairline: rgba(255, 255, 255, 0.09);
+  --hairline-strong: rgba(255, 255, 255, 0.16);
+  /* The AI tools' rainbow rim (components/AI: the tool cards) and the support card's ring. */
+  --rainbow: #FF6A1A, #FFB547, #7DC58F, #33C6E8, #9A7BD4, #FF6A1A;
   --intro: 2.75s;
   --rise-step: 140ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --page-width: 1180px;
+  --section-space: clamp(96px, 14vw, 168px);
+  --panel-radius: clamp(28px, 4vw, 40px);
 }
 
 * { box-sizing: border-box; }
+
+html { background-color: var(--canvas); scroll-behavior: smooth; scroll-padding-top: 84px; }
 
 body {
   margin: 0;
@@ -48,34 +64,16 @@ body {
 }
 
 a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 3px; }
 
-/* The page's one colour belongs to html, and body has none: a colour on body would cover the backdrop, which sits
-   behind the page's content. */
-html { background-color: var(--canvas); }
-
-/* The backdrop behind every page, fixed to the screen: navy along the top edge, the canvas in the middle, a warm
-   dark orange along the bottom edge. Its first and last few pixels are flat, so the .edge strips that lie over them
-   cannot be seen. Two soft glows drift over it (.glow-drift), faded out towards the top and bottom edges so they
-   never change the colour there. */
-.glow {
+/* The backdrop behind every page, fixed to the screen: a hint of navy along the top edge fading into near-black,
+   and nothing glowing over it (the owner's rule). Its first and last few pixels
+   are flat, so the .edge strips that lie over them cannot be seen. The page's one colour belongs to html, and body
+   has none: a colour on body would cover the backdrop. */
+.backdrop {
   position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: linear-gradient(180deg, var(--edge-top) 0, var(--edge-top) var(--edge-band), #0D1019 34%, #0A0A0B 62%, var(--edge-bottom) calc(100% - var(--edge-band)), var(--edge-bottom) 100%);
-}
-.glow-drift {
-  position: absolute; inset: 0; overflow: hidden;
-  -webkit-mask: linear-gradient(180deg, rgba(0, 0, 0, 0) var(--edge-band), #000 30%, #000 70%, rgba(0, 0, 0, 0) calc(100% - var(--edge-band)));
-  mask: linear-gradient(180deg, rgba(0, 0, 0, 0) var(--edge-band), #000 30%, #000 70%, rgba(0, 0, 0, 0) calc(100% - var(--edge-band)));
-}
-.glow-drift::before, .glow-drift::after { content: ''; position: absolute; border-radius: 50%; will-change: transform; }
-.glow-drift::before {
-  width: 110vmax; height: 60vmax; left: -40vmax; top: -14vmax;
-  background: radial-gradient(closest-side, rgba(34, 52, 90, 0.7) 0%, rgba(34, 52, 90, 0.25) 55%, rgba(34, 52, 90, 0) 100%);
-  animation: drift-navy 18s ease-in-out infinite alternate;
-}
-.glow-drift::after {
-  width: 100vmax; height: 50vmax; left: calc(50% - 50vmax); bottom: -10vmax;
-  background: radial-gradient(closest-side, rgba(255, 106, 26, 0.2) 0%, rgba(255, 106, 26, 0) 100%);
-  animation: drift-orange 14s ease-in-out infinite alternate;
+  background: linear-gradient(180deg, var(--edge-top) 0, var(--edge-top) var(--edge-band), var(--backdrop-upper) 34%, var(--backdrop-lower) 62%, var(--edge-bottom) calc(100% - var(--edge-band)), var(--edge-bottom) 100%);
 }
 /* Safari on iPhone colours its status bar and its toolbar from whatever solid-coloured element is fixed to that edge
    of the screen and can be touched there; without one it uses the page's single background colour. These two strips
@@ -83,37 +81,24 @@ html { background-color: var(--canvas); }
 .edge { position: fixed; left: 0; right: 0; z-index: 1; height: var(--edge-band); }
 .edge.top { top: 0; background-color: var(--edge-top); }
 .edge.bottom { bottom: 0; background-color: var(--edge-bottom); }
-@keyframes drift-navy { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(14vmax, 6vmax, 0) scale(1.15); } }
-@keyframes drift-orange { from { transform: translate3d(-10vmax, 0, 0) scale(1); opacity: 0.65; } to { transform: translate3d(10vmax, -5vmax, 0) scale(1.2); opacity: 1; } }
 
-/* The wordmark as the app's loading screen shows it: its shape (wordmark.png) with the logo colours flowing through
-   it from left to right. The strip behind the shape is two passes of the colours, each 1.4 times the word's width
-   (the word's own sweep, then room for the yellow to blend back into slate, as components/intro/Logo.tsx does), and
-   it slides along by one pass per loop. Standing still it shows the logo's own slate-to-yellow sweep. */
+/* The wordmark: its shape (wordmark.png) in the logo's own colours, slate sweeping to gold (components/intro/Logo.tsx),
+   standing still (the owner's request: no flowing colours anywhere). */
 .wordmark {
-  position: relative;
-  overflow: hidden;
   aspect-ratio: 1239 / 251;
+  background: linear-gradient(90deg, rgb(50, 70, 90) 0%, rgb(100, 80, 60) 40%, rgb(180, 120, 60) 60%, rgb(255, 200, 0) 80%, rgb(255, 255, 0) 100%);
   -webkit-mask: url('wordmark.png') center / contain no-repeat;
   mask: url('wordmark.png') center / contain no-repeat;
 }
-.wordmark::before {
-  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 280%;
-  background: linear-gradient(90deg,
-    rgb(50, 70, 90) 0%, rgb(100, 80, 60) 14.29%, rgb(180, 120, 60) 21.43%, rgb(255, 200, 0) 28.57%, rgb(255, 255, 0) 35.71%,
-    rgb(50, 70, 90) 50%, rgb(100, 80, 60) 64.29%, rgb(180, 120, 60) 71.43%, rgb(255, 200, 0) 78.57%, rgb(255, 255, 0) 85.71%,
-    rgb(50, 70, 90) 100%);
-  animation: flow var(--loading-loop) linear infinite;
-}
-@keyframes flow { from { transform: translateX(-50%); } }
 
 /* The cart of the app icon. With `drawn` it draws itself as the promo videos open: stroke by stroke, the wheels drop
    in, then the strokes thin to the icon's weight and a light line comes on along them, stays a moment, and fades
-   away. Without it, it stands finished, with no light line.
+   away. Without it, it stands finished, with no light line. --ink is the cart's own gradient (build-site.ts gives
+   each cart on a page its own).
    Every animation here only describes where a part starts from, so with motion off each part is simply in place. */
 .cart { display: block; height: auto; overflow: visible; --finish: 2.05s; --rim-stay: 2.6s; }
-.cart .ink path { fill: none; stroke: url(#cart-ink); stroke-width: 28.6; stroke-linecap: round; stroke-linejoin: round; }
-.cart .wheel { fill: url(#cart-ink); transform-box: fill-box; transform-origin: center; }
+.cart .ink path { fill: none; stroke: var(--ink); stroke-width: 28.6; stroke-linecap: round; stroke-linejoin: round; }
+.cart .wheel { fill: var(--ink); transform-box: fill-box; transform-origin: center; }
 .cart .rim { fill: none; stroke: rgba(255, 208, 162, 0.85); stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
 .cart .rim path { stroke-width: 4.4; }
 .cart .rim circle { stroke-width: 3; }
@@ -128,97 +113,470 @@ html { background-color: var(--canvas); }
 /* The light line comes on with the finish, stays while the rest of the page arrives, and is gone at the end. */
 @keyframes rim { 0% { opacity: 0; } 20%, 75% { opacity: 1; } 100% { opacity: 0; } }
 
-/* After the cart and the wordmark (--intro), each part of the home page rises into place in turn (--i). */
-.rise { animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--intro) + var(--i, 0) * var(--rise-step)) both; }
+/* After the cart and the wordmark (--intro), each part of the opening rises into place in turn (--i). */
+.rise { animation: rise 0.9s var(--ease-out) calc(var(--intro) + var(--i, 0) * var(--rise-step)) both; }
 @keyframes rise { from { opacity: 0; transform: translateY(18px); } }
 
-/* ---- Home ---- */
-.hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: calc(40px + env(safe-area-inset-top, 0px)) 24px 24px; text-align: center; }
+/* Further down, each part rises as it scrolls into view (site.js adds is-in). Without the script it simply shows. */
+.js .reveal { opacity: 0; transform: translateY(32px); transition: opacity 0.9s var(--ease-out), transform 0.9s var(--ease-out); }
+.js .reveal.is-in { opacity: 1; transform: none; }
 
-.mark { position: relative; width: clamp(104px, 22vw, 150px); margin-bottom: 22px; }
-.mark .cart { position: relative; width: 100%; }
-
-.hero .wordmark { width: min(340px, 68vw); animation: wordmark-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 2.35s both; }
-@keyframes wordmark-in { from { opacity: 0; transform: translateY(14px) scale(0.8); } }
-
-.hero h1 { margin: 24px 0 0; font-weight: 500; font-size: clamp(20px, 3.3vw, 30px); line-height: 1.3; letter-spacing: 0.01em; color: var(--text); }
-.hero h1 .line { display: block; }
-/* The second line runs from the app's orange into the logo's gold. */
+/* The second line of a headline runs from the app's orange into the logo's gold. */
 .accent { color: var(--accent); background: linear-gradient(90deg, var(--accent), var(--gold)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 
-/* ---- The showcase: a few of the app's controls, one at a time, with no words (showcase.js turns the slides) ----
-   A slide waits unseen on the right, slides in, and leaves to the left. `is-waiting` puts a slide that left back on
-   the right without crossing the stage. */
-.showcase {
-  --slide-shift: 70%;
-  position: relative; overflow: hidden; width: min(420px, 86vw); height: 168px; margin-top: 18px;
-  -webkit-mask: linear-gradient(90deg, rgba(0, 0, 0, 0), #000 10%, #000 90%, rgba(0, 0, 0, 0));
-  mask: linear-gradient(90deg, rgba(0, 0, 0, 0), #000 10%, #000 90%, rgba(0, 0, 0, 0));
+/* ---- Buttons ---- */
+.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; padding: 0 26px;
+  border-radius: 999px; border: 1px solid transparent; font-size: 17px; font-weight: 700; text-decoration: none; cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: translateX(var(--slide-shift)); transition: transform 0.8s cubic-bezier(0.65, 0, 0.35, 1), opacity 0.6s ease; }
-.slide.is-current { opacity: 1; transform: none; }
-.slide.is-leaving { transform: translateX(calc(-1 * var(--slide-shift))); }
-.slide.is-waiting { transition: none; }
-/* A grey bar stands where the app has words. */
-.word { display: block; height: 7px; border-radius: 4px; background: rgba(242, 240, 236, 0.5); }
+.button:active { transform: scale(0.97); }
+/* No glows anywhere (the owner's rule): an orange key has a plain dark shadow under it, nothing lit round it. */
+.button.primary { color: var(--on-accent); background: linear-gradient(180deg, var(--accent-light), var(--accent)); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+.button.primary:hover { background: linear-gradient(180deg, #FF9A55, var(--accent-light)); }
+.button.quiet { color: var(--text); background: rgba(255, 255, 255, 0.06); border-color: var(--hairline-strong); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.button.quiet:hover { background: rgba(255, 255, 255, 0.11); }
+.button.small { min-height: 38px; padding: 0 18px; font-size: 15px; }
 
-/* Slide: the list's store dial in its panel: the filter switch with its light, the hairline, its stops and the needle. */
-.panel { width: 84%; padding: 14px 18px 8px; border-radius: 22px; background: #111114; border: 1px solid rgba(255, 255, 255, 0.06); }
-.panel-top { display: flex; align-items: center; gap: 8px; height: 26px; }
-.panel-top .word { width: 44px; opacity: 0.5; }
-.panel-top .word.store { width: 62px; background: #9A7BD4; opacity: 1; }
-.panel-top .dot { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); }
-.switch { position: relative; width: 46px; height: 26px; margin-left: auto; border-radius: 13px; border: 1px solid #76402A; background: #29160F; animation: switch-track 8s ease-in-out infinite; }
-.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #FCFCFA; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); transform: translateX(20px); animation: switch-knob 8s ease-in-out infinite; }
-.switch-light { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px 3px var(--accent-glow); animation: switch-light 8s ease-in-out infinite; }
-@keyframes switch-track { 0%, 6% { background: #080809; border-color: #2C2C30; } 12%, 100% { background: #29160F; border-color: #76402A; } }
-@keyframes switch-knob { 0%, 6% { transform: none; } 12%, 100% { transform: translateX(20px); } }
-@keyframes switch-light { 0%, 6% { background: #38383D; box-shadow: none; } 12%, 100% { background: var(--accent); box-shadow: 0 0 10px 3px var(--accent-glow); } }
-.tuner { position: relative; height: 40px; margin-top: 6px; }
-.tuner::before { content: ''; position: absolute; left: 0; right: 0; top: 19px; height: 1px; background: linear-gradient(90deg, rgba(255, 255, 255, 0), var(--hairline) 15%, var(--hairline) 85%, rgba(255, 255, 255, 0)); }
-.tuner i { position: absolute; top: 16px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--stop); }
-.tuner i:nth-child(1) { left: 10%; }
-.tuner i:nth-child(2) { left: 30%; }
-.tuner i:nth-child(3) { left: 50%; }
-.tuner i:nth-child(4) { left: 70%; }
-.tuner i:nth-child(5) { left: 90%; }
-.needle { position: absolute; top: 6px; left: 10%; width: 2px; height: 28px; margin-left: -1px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 14px 3px var(--accent-glow); animation: tune 8s cubic-bezier(0.6, 0, 0.2, 1) infinite; }
-@keyframes tune { 0%, 14% { left: 10%; } 22%, 36% { left: 50%; } 44%, 58% { left: 30%; } 66%, 80% { left: 90%; } 88%, 94% { left: 70%; } 100% { left: 10%; } }
+/* ---- The bar along the top: a floating glass pill over a fade of the page's top colour, coming down once the
+   opening has mostly played. The fade is its own element: inside the pill, the pill's transform would trap it. ---- */
+.nav-scrim {
+  position: fixed; z-index: 19; left: 0; right: 0; top: 0; height: calc(96px + env(safe-area-inset-top, 0px)); pointer-events: none;
+  background: linear-gradient(180deg, var(--edge-top) 0, rgba(20, 26, 40, 0.92) 40%, rgba(20, 26, 40, 0)); opacity: 0; transition: opacity 0.4s ease;
+}
+.nav-on .nav-scrim { opacity: 1; }
+.site-nav {
+  position: fixed; z-index: 20; left: 50%; top: calc(var(--edge-band) + 8px + env(safe-area-inset-top, 0px));
+  display: flex; align-items: center; gap: 22px; width: min(1040px, calc(100% - 24px)); height: 58px; padding: 0 10px 0 18px;
+  border-radius: 999px; border: 1px solid var(--hairline-strong); background: rgba(17, 17, 20, 0.7);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -140%); opacity: 0; transition: transform 0.55s var(--ease-out), opacity 0.4s ease;
+}
+.nav-on .site-nav { transform: translate(-50%, 0); opacity: 1; }
+.nav-brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+.nav-brand .cart { width: 30px; }
+.nav-brand .wordmark { width: 116px; }
+.site-nav nav { display: flex; gap: 4px; margin-left: auto; }
+.site-nav nav a { padding: 8px 14px; border-radius: 999px; color: var(--quiet); font-size: 15px; font-weight: 500; text-decoration: none; transition: color 0.2s, background-color 0.2s; }
+.site-nav nav a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+@media (max-width: 760px) {
+  .site-nav nav { display: none; }
+  .site-nav .button { margin-left: auto; }
+  .nav-brand .wordmark { width: 104px; }
+}
 
-/* Slide: the AI loading screen: food emoji tossed up from a glowing line, a few at a time (showcase.js moves them,
-   as components/Loading/EmojiToss.tsx does in the app). An emoji rests unseen on the line. */
-.toss { --toss-height: 100px; --emoji-size: 34px; --line-from-bottom: 34px; position: relative; width: 100%; height: 100%; }
-.toss-line { position: absolute; left: 22%; right: 22%; bottom: var(--line-from-bottom); height: 1px; background: #fff; box-shadow: 0 2px 5px rgba(255, 255, 255, 0.5); }
-.tossed { position: absolute; left: 50%; bottom: calc(var(--line-from-bottom) - var(--emoji-size) / 2); width: var(--emoji-size); margin-left: calc(var(--emoji-size) / -2); font-size: var(--emoji-size); line-height: 1; text-align: center; }
-.tossed i { display: block; font-style: normal; opacity: 0; }
+/* ---- Sections ---- */
+.home { display: block; }
+.home > section { position: relative; width: 100%; max-width: var(--page-width); margin: 0 auto; padding: var(--section-space) 20px 0; }
+.section-head { max-width: 880px; margin: 0 auto clamp(36px, 5vw, 56px); text-align: center; }
+/* A device's name above its heading, as the App Store images tag theirs. */
+.tag {
+  display: inline-block; margin: 0 0 18px; padding: 6px 15px; border-radius: 999px; border: 1px solid rgba(255, 106, 26, 0.42);
+  background: rgba(255, 106, 26, 0.08); color: var(--eyebrow); font-size: 12px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+}
+.section-head h2, .get h2, .hero h1 { text-wrap: balance; }
+.section-head h2, .get h2 { margin: 0; font-size: clamp(32px, 4.6vw, 56px); font-weight: 700; line-height: 1.06; letter-spacing: -0.015em; }
+.section-head h2 span, .get h2 span { display: block; }
+.subline { max-width: 560px; margin: 18px auto 0; color: var(--quiet); font-size: clamp(17px, 1.8vw, 19px); line-height: 1.5; }
 
-/* Slide: list rows being ticked off, one after the other: the ring fills, the tick lands, the name is struck out. */
-.rows { display: grid; gap: 8px; width: 84%; --tick-loop: 7s; }
-.row { display: flex; align-items: center; gap: 12px; height: 42px; padding: 0 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); }
-.tick { position: relative; flex: none; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--accent); animation: tick-fill var(--tick-loop) var(--turn) ease-in-out infinite both; }
-.tick::after { content: ''; position: absolute; left: 5px; top: 1.5px; width: 4px; height: 9px; border: solid var(--accent); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg) scale(0); animation: tick-mark var(--tick-loop) var(--turn) cubic-bezier(0.3, 1.5, 0.5, 1) infinite both; }
-.row .word { position: relative; width: var(--name); animation: tick-name var(--tick-loop) var(--turn) ease-in-out infinite both; }
-.row .word::after { content: ''; position: absolute; left: -5px; right: -5px; top: 2.5px; height: 2px; border-radius: 1px; background: var(--quiet); transform: scaleX(0); transform-origin: left; animation: tick-strike var(--tick-loop) var(--turn) ease-in-out infinite both; }
-.tag { width: 56px; height: 20px; margin-left: auto; border-radius: 7px; background: var(--tag, rgba(154, 123, 212, 0.25)); }
-@keyframes tick-fill { 0%, 6% { background: transparent; } 12%, 82% { background: #FCFCFA; } 90%, 100% { background: transparent; } }
-@keyframes tick-mark { 0%, 6% { transform: rotate(45deg) scale(0); } 13%, 82% { transform: rotate(45deg) scale(1); } 90%, 100% { transform: rotate(45deg) scale(0); } }
-@keyframes tick-name { 0%, 6% { opacity: 1; } 14%, 82% { opacity: 0.35; } 90%, 100% { opacity: 1; } }
-@keyframes tick-strike { 0%, 6% { transform: scaleX(0); } 14%, 82% { transform: scaleX(1); } 90%, 100% { transform: scaleX(0); } }
+/* ---- 3D devices: a canvas over the flat screen; once the device draws its first picture the flat one steps back ---- */
+.device { position: relative; width: 100%; height: 100%; }
+.device canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.8s ease; touch-action: pan-y; }
+.device.is-3d canvas { opacity: 1; }
+.device canvas.is-dragging { cursor: grabbing; }
+[data-device="tour"] canvas, [data-device="duo"] canvas { cursor: grab; }
+.flat-phone {
+  position: absolute; left: 50%; top: 50%; height: 84%; aspect-ratio: 1320 / 2868; transform: translate(-50%, -50%);
+  padding: 1.4%; border-radius: 13% / 6%; background: #0b0b0d; border: 3px solid #3c3c43;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55); transition: opacity 0.8s ease;
+}
+.flat-phone img { display: block; width: 100%; height: 100%; border-radius: 11% / 5.2%; object-fit: cover; }
+.device.is-3d .flat-phone { opacity: 0; }
+.device-duo .flat-phone { height: auto; width: 88%; aspect-ratio: 2853 / 2007; border-radius: 6%; }
+.device-duo .flat-phone img { border-radius: 4.6%; }
 
-/* Support: a glass card inside the app's turning colour ring. */
-.support { position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 22px; padding: 18px 36px; border-radius: 26px; background: rgba(26, 26, 30, 0.72); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); text-decoration: none; }
-.support::before {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none;
-  background: conic-gradient(from var(--ring-angle), #FF6A1A, #FFB547, #7DC58F, #33C6E8, #9A7BD4, #FF6A1A);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  animation: ring 8s linear infinite;
+/* ---- The opening: pinned for its first stretch of scrolling (site.js sets --hero-progress, 0 to 1) ---- */
+.home > .hero { max-width: none; height: 190vh; padding: 0; }
+.hero-pin { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+.device-hero { position: absolute; inset: 0; }
+.device-hero .flat-phone { top: calc(84% - var(--hero-progress, 0) * 34%); height: 70%; }
+.hero-copy {
+  position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; padding: calc(56px + env(safe-area-inset-top, 0px)) 20px 0; text-align: center;
+  opacity: calc(1 - var(--hero-progress, 0) * 1.8); transform: translateY(calc(var(--hero-progress, 0) * -70px)); pointer-events: none;
+}
+.hero-copy a { pointer-events: auto; }
+.mark { width: clamp(72px, 9vw, 92px); margin-bottom: 14px; }
+.mark .cart { width: 100%; }
+.hero .wordmark { width: min(260px, 60vw); animation: wordmark-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 2.35s both; }
+@keyframes wordmark-in { from { opacity: 0; transform: translateY(14px) scale(0.8); } }
+.hero h1 { margin: 20px 0 0; font-size: clamp(40px, 6vw, 80px); font-weight: 700; line-height: 1.02; letter-spacing: -0.02em; }
+.hero h1 .line { display: block; }
+.hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 24px; }
+/* On a phone the words take most of the screen: one button (scrolling is the closer look), a smaller headline. */
+@media (max-width: 480px) {
+  .hero h1 { font-size: 36px; }
+  .hero-actions .button.quiet { display: none; }
+  .hero-actions .button.primary { min-width: 220px; }
+}
+
+/* A play triangle, drawn in the background, for "Watch the film" and the film cards. */
+.button.play::before { content: ''; width: 12px; height: 14px; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+
+/* ---- The film and the tours: upright cards, each opening its film with sound ---- */
+.feature-film { display: grid; place-items: center; }
+.films { display: grid; grid-template-columns: repeat(3, minmax(0, 300px)); justify-content: center; gap: 24px; margin: 0; padding: 0; list-style: none; }
+.film {
+  position: relative; display: block; width: 100%; aspect-ratio: 9 / 16; padding: 0; border: 0; border-radius: 22px; overflow: hidden;
+  background: #151518; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08); cursor: pointer; text-align: left;
+}
+.film img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s var(--ease-out), filter 0.4s ease; }
+.film::after { content: ''; position: absolute; inset: 40% 0 0; background: linear-gradient(180deg, rgba(10, 10, 12, 0), rgba(10, 10, 12, 0.8) 50%, rgba(10, 10, 12, 0.97)); pointer-events: none; }
+.film:hover img { transform: scale(1.04); filter: brightness(1.12); }
+.film-play {
+  position: absolute; left: 50%; top: 42%; z-index: 1; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%;
+  background: rgba(20, 20, 23, 0.55); border: 1px solid rgba(255, 255, 255, 0.35); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  transition: transform 0.3s var(--ease-out), background-color 0.3s ease;
+}
+.film-play::after { content: ''; position: absolute; left: 25px; top: 20px; width: 18px; height: 22px; background: #fff; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.film:hover .film-play { transform: scale(1.08); background: var(--accent); }
+.film-text { position: absolute; left: 14px; right: 14px; bottom: 14px; z-index: 1; display: flex; flex-direction: column; gap: 3px; }
+.film-text strong { font-size: 16px; font-weight: 700; line-height: 1.25; }
+/* The film's own card: larger than the tours'. */
+.film.large { width: min(400px, 82vw); border-radius: 30px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 30px 90px rgba(0, 0, 0, 0.55); }
+.film.large .film-play { width: 84px; height: 84px; margin: -42px 0 0 -42px; }
+.film.large .film-play::after { left: 33px; top: 27px; width: 24px; height: 30px; }
+.film.large .film-text { left: 22px; right: 22px; bottom: 22px; }
+.film.large .film-text strong { font-size: 22px; }
+.film.large .film-text small { font-size: 15px; }
+.film-text small { color: var(--quiet); font-size: 13px; line-height: 1.35; }
+/* The film fits the screen's height in the lightbox, upright like the phone it was made for. */
+.lightbox-film .lightbox-picture, .lightbox-tours .lightbox-picture { aspect-ratio: 9 / 16; }
+.lightbox-step[hidden] { display: none; }
+@media (max-width: 860px) {
+  .films { display: flex; gap: 12px; overflow-x: auto; margin: 0 -20px; padding: 4px 20px 10px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .films::-webkit-scrollbar { display: none; }
+  .films li { flex: none; width: min(64vw, 260px); scroll-snap-align: center; }
+}
+
+/* ---- A phone drawn flat (the walk-in and the share steps): its screens stacked, the first on top ---- */
+.mini-phone {
+  position: relative; aspect-ratio: 1320 / 2868; padding: 2.2%; border-radius: 15% / 7%; background: #0b0b0d;
+  border: 2px solid #46464d; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.mini-phone img { position: absolute; inset: 2.2%; width: 95.6%; height: 95.6%; border-radius: 13% / 6%; object-fit: cover; transition: opacity 0.5s ease; }
+.mini-phone .screen-1 { opacity: 0; }
+
+/* ---- Walk in: a little map, a walk into Whole Foods, the note, and the list switching (site.js) ---- */
+.walk-in { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: center; gap: clamp(24px, 5vw, 64px); max-width: 1000px; margin: 0 auto; }
+.walk-map-panel { position: relative; padding: 18px 18px 92px; border-radius: var(--panel-radius); background: rgba(255, 255, 255, 0.025); border: 1px solid var(--hairline); }
+.walk-map { display: block; width: 100%; height: auto; overflow: visible; }
+.walk-route { fill: none; stroke: rgba(255, 255, 255, 0.22); stroke-width: 2; stroke-dasharray: 6 7; stroke-linecap: round; }
+.walk-trail { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.store rect { fill: rgba(255, 255, 255, 0.03); stroke: rgba(255, 255, 255, 0.14); stroke-width: 1.5; transition: fill 0.5s ease, stroke 0.5s ease; }
+.store circle { fill: #141417; stroke: var(--store); stroke-width: 2; }
+.store text { fill: var(--store); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-anchor: middle; }
+.store .store-name { fill: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0; }
+/* Arrived: the store you walked into lights up in its own colour. */
+.is-arrived .store-wf rect { fill: rgba(125, 197, 143, 0.16); stroke: var(--store); }
+.is-arrived .store-wf .store-name { fill: var(--text); }
+.walker circle { fill: #fff; }
+.walker .walker-dot { fill: var(--accent); }
+/* The note GrocGo shows on arrival (DetectedStoreNotice), rising in when the walk ends. */
+.arrival-note {
+  position: absolute; left: 50%; bottom: 20px; display: flex; align-items: center; gap: 12px; width: min(330px, calc(100% - 36px)); padding: 12px 14px;
+  border-radius: 18px; background: #18181c; border: 1px solid var(--hairline-strong); transform: translate(-50%, 12px); opacity: 0;
+  transition: opacity 0.45s ease 0.1s, transform 0.45s var(--ease-out) 0.1s;
+}
+.is-arrived .arrival-note { opacity: 1; transform: translate(-50%, 0); }
+.arrival-pin { flex: none; width: 36px; height: 36px; border-radius: 11px; background: rgba(255, 106, 26, 0.16) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z' fill='%23FF6A1A'/%3E%3Ccircle cx='12' cy='10' r='2.6' fill='%2318181c'/%3E%3C/svg%3E") center / 20px no-repeat; }
+.arrival-note > span:nth-child(2) { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.arrival-note strong { font-size: 16px; font-weight: 700; }
+.arrival-note small { color: var(--quiet); font-size: 13px; }
+.arrival-arrow { width: 9px; height: 9px; margin-left: auto; border: solid var(--quiet); border-width: 2px 2px 0 0; transform: rotate(45deg); }
+.walk-in .mini-phone { width: min(280px, 100%); justify-self: center; }
+.is-arrived .mini-phone .screen-1 { opacity: 1; }
+@media (max-width: 860px) {
+  .walk-in { grid-template-columns: minmax(0, 1fr); }
+  .walk-in .mini-phone { width: min(240px, 66vw); }
+}
+
+/* ---- Share to GrocGo: where recipes come from, then four steps lighting up in turn (site.js) ---- */
+.share-sources { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 0 0 40px; padding: 0; list-style: none; }
+.share-sources li { display: inline-flex; align-items: center; gap: 9px; padding: 8px 16px 8px 9px; border-radius: 999px; background: var(--tile); border: 1px solid var(--hairline-strong); font-size: 15px; font-weight: 500; }
+.share-sources svg, .web-mark { width: 28px; height: 28px; padding: 6px; border-radius: 9px; fill: #fff; }
+.share-sources .tiktok svg { background: #000; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.share-sources .instagram svg { background: radial-gradient(circle at 30% 110%, #FFD776 0%, #F3A64C 18%, #E13A6D 52%, #A23BBF 78%, #5B4BD5 100%); }
+.share-sources .youtube svg { background: #FF0033; }
+.web-mark { display: inline-block; background: #2B2B31 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'/%3E%3C/svg%3E") center / 16px no-repeat; }
+.share-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(16px, 3vw, 32px); margin: 0; padding: 0; list-style: none; }
+.share-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; transition: opacity 0.4s ease, transform 0.4s var(--ease-out); }
+.share-step .mini-phone { width: 100%; max-width: 230px; margin-bottom: 18px; }
+.share-step strong { font-size: 18px; font-weight: 700; line-height: 1.3; }
+.share-step small { max-width: 220px; margin-top: 4px; color: var(--quiet); font-size: 15px; line-height: 1.45; }
+.step-number {
+  position: absolute; z-index: 1; top: -14px; left: 50%; display: grid; place-items: center; width: 32px; height: 32px; margin-left: -16px;
+  border-radius: 50%; background: var(--tile); border: 1px solid var(--hairline-strong); color: var(--text); font-size: 15px; font-weight: 700; transition: background-color 0.3s ease, color 0.3s ease;
+}
+/* While it plays, the step being shown stands forward and the others step back. */
+.share-steps.is-playing .share-step { opacity: 0.42; }
+.share-steps.is-playing .share-step.is-current { opacity: 1; transform: translateY(-6px); }
+.share-step.is-current .step-number { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+@media (max-width: 860px) {
+  .share-steps { display: flex; gap: 14px; overflow-x: auto; margin: 0 -20px; padding: 18px 20px 6px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .share-steps::-webkit-scrollbar { display: none; }
+  .share-step { flex: none; width: min(62vw, 240px); scroll-snap-align: center; }
+  .share-steps.is-playing .share-step { opacity: 1; }
+}
+
+/* ---- Feature explorers (the feature tour and the iPhone Duo): GrocGo's own layout, the device on the left and, on the
+   right, the app's tabs over numbered rows; the open row shows its words and a thin progress line (site.js) ---- */
+.explorer { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr); align-items: center; gap: clamp(24px, 4vw, 56px); }
+.explorer-panel { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+/* The tabs, drawn like the app's own tab bar: a dark bar with the chosen tab lit and a white line above it. */
+.explorer-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 5px; border-radius: 18px; background: #141417; border: 1px solid var(--hairline); }
+.explorer-tab {
+  position: relative; padding: 11px 12px; border: 0; border-radius: 13px; background: transparent; color: var(--muted);
+  font-size: 15px; font-weight: 700; cursor: pointer; transition: color 0.2s, background-color 0.2s;
+}
+.explorer-tab:hover { color: var(--quiet); }
+.explorer-tab[aria-selected="true"] { color: var(--text); background: var(--tile-raised); }
+.explorer-tab[aria-selected="true"]::before { content: ''; position: absolute; left: 30%; right: 30%; top: 4px; height: 2px; border-radius: 1px; background: var(--text); }
+.explorer-rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--hairline); }
+.explorer-row { border-bottom: 1px solid var(--hairline); }
+.explorer-row[hidden] { display: none; }
+.row-head {
+  display: flex; align-items: baseline; gap: 16px; width: 100%; padding: 18px 4px; border: 0; background: none; text-align: left; cursor: pointer;
+  color: var(--quiet); transition: color 0.2s;
+}
+.row-head:hover { color: var(--text); }
+.row-number { flex: none; width: 26px; color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; }
+.row-title { font-size: clamp(18px, 1.7vw, 21px); font-weight: 700; line-height: 1.25; }
+/* AI Chef's features carry a small tag in the AI tools' rainbow, in place of a ring. */
+.ai-tag {
+  flex: none; align-self: center; margin-left: auto; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  color: var(--text); background: linear-gradient(#141417, #141417) padding-box, linear-gradient(90deg, var(--rainbow)) border-box; border: 1px solid transparent;
+}
+.explorer-row.is-open .row-head { color: var(--text); }
+.explorer-row.is-open .row-number { color: var(--accent); }
+.row-body { display: none; padding: 0 4px 20px 46px; }
+.explorer-row.is-open .row-body { display: block; animation: row-in 0.4s var(--ease-out) both; }
+@keyframes row-in { from { opacity: 0; transform: translateY(-6px); } }
+.row-body p { margin: 0; color: var(--quiet); font-size: 17px; line-height: 1.55; }
+.row-body strong { color: var(--text); font-weight: 700; }
+/* The progress line: it fills while the stop plays, then the explorer moves on. */
+.row-progress { display: block; height: 2px; margin-top: 16px; border-radius: 1px; background: var(--hairline); overflow: hidden; }
+.row-progress i { display: block; height: 100%; width: 100%; background: var(--accent); transform: scaleX(0); transform-origin: left; }
+.explorer-row.is-playing .row-progress i { animation: row-progress var(--stop-ms, 6s) linear both; }
+@keyframes row-progress { to { transform: scaleX(1); } }
+.explorer-duo .row-progress { display: none; }
+.device-tour { height: min(82vh, 820px); min-height: 540px; }
+
+/* The iPhone Duo's slider, in the open row. Its thumb is an orange pill with the open-and-close chevrons. */
+.fold { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; color: var(--muted); font-size: 14px; }
+.fold[hidden] { display: none; }
+.fold input { -webkit-appearance: none; appearance: none; width: 100%; height: 40px; margin: 0; background: transparent; cursor: pointer; }
+.fold input::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); }
+.fold input::-moz-range-track { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); }
+.fold input::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 72px; height: 40px; margin-top: -16px; border-radius: 20px; border: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 40'%3E%3Cpath d='M31 14l-6 6 6 6M41 14l6 6-6 6' fill='none' stroke='%231F0D04' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 72px 40px no-repeat, linear-gradient(180deg, var(--accent-light), var(--accent));
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+}
+.fold input::-moz-range-thumb {
+  width: 72px; height: 40px; border-radius: 20px; border: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 40'%3E%3Cpath d='M31 14l-6 6 6 6M41 14l6 6-6 6' fill='none' stroke='%231F0D04' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 72px 40px no-repeat, linear-gradient(180deg, var(--accent-light), var(--accent));
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+}
+.device-duo { height: min(70vh, 680px); min-height: 420px; }
+
+/* On a phone an explorer stands up: the tabs, the device, then the rows, tight enough that the tabs, the device and
+   the open row fit on one screen, so the screen that changes stays in sight. */
+@media (max-width: 860px) {
+  .explorer { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .explorer-panel { display: contents; }
+  .explorer-tabs { order: -1; }
+  .device-tour { height: 44vh; min-height: 330px; }
+  .device-duo { height: 34vh; min-height: 250px; }
+  .row-head { padding: 12px 2px; }
+  .row-title { font-size: 17px; }
+  .row-body { padding: 0 2px 14px 42px; }
+  .row-body p { font-size: 15px; }
+  .row-progress { margin-top: 12px; }
+}
+
+/* ---- Apple Watch: a watch drawn in CSS round its real screens, labelled as the promo images label, leaning toward the pointer ---- */
+.watch-stage { display: grid; place-items: center; padding: 70px 0 40px; }
+.watch {
+  --lean-x: 0; --lean-y: 0;
+  position: relative; width: clamp(240px, 26vw, 300px);
+  transform: perspective(1000px) rotateY(calc(var(--lean-x) * 18deg)) rotateX(calc(var(--lean-y) * -12deg));
+  transition: transform 0.5s var(--ease-out);
+}
+/* The case, its bands and buttons share one box (.watch-body), so they stay together wherever the labels go. */
+.watch-body { position: relative; }
+/* The band, in graphite, fading into the page. */
+.band { position: absolute; left: 16%; right: 16%; height: 120px; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0) 0 6px, rgba(255, 255, 255, 0.04) 6px 7px), linear-gradient(90deg, #1c1c20, #2c2c31 50%, #1c1c20); }
+.band.top { bottom: 94%; border-radius: 22px 22px 0 0; -webkit-mask: linear-gradient(0deg, #000 30%, rgba(0, 0, 0, 0)); mask: linear-gradient(0deg, #000 30%, rgba(0, 0, 0, 0)); }
+.band.bottom { top: 94%; border-radius: 0 0 22px 22px; -webkit-mask: linear-gradient(180deg, #000 30%, rgba(0, 0, 0, 0)); mask: linear-gradient(180deg, #000 30%, rgba(0, 0, 0, 0)); }
+.watch-case {
+  position: relative; z-index: 1; padding: 8%; border-radius: 30% / 26%;
+  background: linear-gradient(145deg, #a6a6ad, #4a4a51 30%, #2a2a2f 62%, #85858c);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18), 0 40px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+.watch-screen { overflow: hidden; border-radius: 22% / 19%; background: #000; aspect-ratio: 416 / 496; }
+.watch-screen img { display: block; width: 100%; height: 100%; transition: opacity 0.18s ease; }
+.watch-screen img.is-dim { opacity: 0; }
+.crown { position: absolute; z-index: 0; right: -6%; top: 26%; width: 9%; height: 17%; border-radius: 6px; background: linear-gradient(90deg, #5a5a61, #b5b5bc 50%, #5a5a61); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.3); }
+.action-button { position: absolute; z-index: 0; left: -4%; top: 30%; width: 6%; height: 24%; border-radius: 5px; background: linear-gradient(90deg, #A8380F, var(--accent)); }
+/* A label: a dark tag with one orange dot, a fine white line to a white point on the screen (promo-images/explain.css). */
+.callouts { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.callout {
+  --reach: clamp(70px, 9vw, 130px);
+  position: absolute; top: var(--y); white-space: nowrap; display: inline-flex; align-items: center; gap: 9px;
+  padding: 8px 14px; border-radius: 12px; background: #141417; border: 1px solid var(--hairline-strong);
+  color: var(--text); font-size: 15px; font-weight: 500; transform: translateY(-50%);
+}
+.callout::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.callout::after { content: ''; position: absolute; top: 50%; height: 1px; background: rgba(255, 255, 255, 0.75); }
+.callout.right { left: calc(var(--x) + var(--reach)); }
+.callout.right::after { right: 100%; width: calc(var(--reach) + 1px); background: linear-gradient(90deg, #fff 0 5px, rgba(255, 255, 255, 0.75) 5px); }
+.callout.left { right: calc(100% - var(--x) + var(--reach)); }
+.callout.left::after { left: 100%; width: calc(var(--reach) + 1px); background: linear-gradient(270deg, #fff 0 5px, rgba(255, 255, 255, 0.75) 5px); }
+/* On a phone there is no room beside the watch: the labels line up as tags under it, without their lines. */
+@media (max-width: 860px) {
+  .watch-stage { padding: 60px 0 0; }
+  .callouts { position: relative; inset: auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 92vw; margin: 150px 0 0 50%; transform: translateX(-50%); }
+  .callout { position: static; transform: none; font-size: 14px; padding: 7px 12px; }
+  .callout::after { display: none; }
+}
+
+/* ---- Everything in GrocGo: the promo films' closing list, each tick drawing on as it comes into view ---- */
+.groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(28px, 5vw, 64px); max-width: 1020px; margin: 0 auto; }
+.group h3 { margin: 0 0 18px; padding-bottom: 14px; border-bottom: 1px solid var(--hairline); color: var(--eyebrow); font-size: 13px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.group ul { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.group li { display: flex; align-items: flex-start; gap: 12px; font-size: 18px; line-height: 1.35; }
+.check { flex: none; width: 22px; height: 22px; margin-top: 1px; fill: none; stroke: var(--accent); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.check path { stroke-dasharray: 1 1; }
+.js .group li { opacity: 0; transform: translateX(-10px); transition: opacity 0.5s ease, transform 0.5s var(--ease-out); transition-delay: calc(0.2s + var(--group) * 0.18s + var(--row) * 0.09s); }
+.js .group li .check path { stroke-dashoffset: 1; transition: stroke-dashoffset 0.4s ease; transition-delay: calc(0.32s + var(--group) * 0.18s + var(--row) * 0.09s); }
+.js .group.is-in li { opacity: 1; transform: none; }
+.js .group.is-in li .check path { stroke-dashoffset: 0; }
+.and-more { margin: 48px 0 0; text-align: center; color: var(--quiet); font-size: clamp(22px, 2.6vw, 28px); font-weight: 500; }
+@media (max-width: 960px) { .groups { grid-template-columns: minmax(0, 1fr); max-width: 480px; } }
+
+/* ---- The gallery: an endless wall across the whole width (site.js), its edges fading into the page ---- */
+.home > .gallery-section { max-width: none; padding-left: 0; padding-right: 0; }
+.gallery-section .section-head { padding: 0 20px; }
+.gallery {
+  --fade: clamp(40px, 8vw, 140px);
+  position: relative; height: clamp(500px, 84vh, 880px); overflow: hidden; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none;
+  -webkit-mask: linear-gradient(90deg, rgba(0, 0, 0, 0), #000 var(--fade), #000 calc(100% - var(--fade)), rgba(0, 0, 0, 0)), linear-gradient(180deg, rgba(0, 0, 0, 0), #000 var(--fade), #000 calc(100% - var(--fade)), rgba(0, 0, 0, 0));
+  -webkit-mask-composite: source-in;
+  mask: linear-gradient(90deg, rgba(0, 0, 0, 0), #000 var(--fade), #000 calc(100% - var(--fade)), rgba(0, 0, 0, 0)), linear-gradient(180deg, rgba(0, 0, 0, 0), #000 var(--fade), #000 calc(100% - var(--fade)), rgba(0, 0, 0, 0));
+  mask-composite: intersect;
+}
+.gallery:focus-visible { outline-offset: -4px; }
+.gallery.is-dragging { cursor: grabbing; }
+.gallery-wall { position: absolute; inset: 0; }
+.wall-tile, .gallery-open {
+  position: absolute; left: 0; top: 0; padding: 0; border: 0; border-radius: 20px; overflow: hidden; background: #151518; cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.wall-tile img, .wall-tile video, .gallery-open img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center top; pointer-events: none; transition: transform 0.6s var(--ease-out), filter 0.4s ease; }
+.wall-tile:hover img, .wall-tile:hover video { transform: scale(1.04); filter: brightness(1.08); }
+/* The label: a solid dark tag, as the promo images label (no glow, no floating text). */
+.gallery-label {
+  position: absolute; left: 10px; bottom: 10px; padding: 5px 11px; border-radius: 999px; background: rgba(14, 14, 15, 0.88);
+  border: 1px solid var(--hairline-strong); color: var(--text); font-size: 13px; font-weight: 700; line-height: 1.3;
+}
+.gallery-hint { margin: 18px 0 0; text-align: center; color: var(--muted); font-size: 14px; }
+/* Without the script: the same pictures in a plain scrolling grid. */
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; height: 100%; margin: 0; padding: 20px; overflow-y: auto; list-style: none; }
+.gallery-open { position: relative; width: 100%; aspect-ratio: 1 / 1.6; }
+.gallery.is-wall .gallery-grid { display: none; }
+
+/* The lightbox: the picture opens out of its tile over the dimmed page. */
+.lightbox { width: 100vw; max-width: 100vw; height: 100vh; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0; background: transparent; color: var(--text); }
+.lightbox[open] { display: grid; grid-template-rows: 1fr auto; justify-items: center; align-items: center; }
+.lightbox::backdrop { background: rgba(6, 6, 8, 0.86); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+/* A flex box, not a grid: a grid's auto row would leave the picture's 100% height unresolved, at its natural size. */
+.lightbox-media { display: flex; align-items: center; justify-content: center; height: min(80vh, 920px); height: min(80dvh, 920px); margin-top: 28px; }
+.lightbox-picture { display: block; height: 100%; width: auto; max-width: 92vw; object-fit: contain; border-radius: 18px; box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7); background: #111; }
+.lightbox-caption { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 14px 0 26px; padding: 0 70px; text-align: center; }
+.lightbox-feature { color: var(--eyebrow); font-size: 12px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; }
+.lightbox-title { font-size: 20px; }
+.lightbox-close, .lightbox-step { position: absolute; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--hairline-strong); background: rgba(26, 26, 30, 0.8); cursor: pointer; transition: background-color 0.2s; }
+.lightbox-close:hover, .lightbox-step:hover { background: var(--tile-raised); }
+.lightbox-close { top: calc(18px + env(safe-area-inset-top, 0px)); right: 18px; }
+.lightbox-close span, .lightbox-close span::after { position: relative; display: block; width: 18px; height: 2px; background: var(--text); transform: rotate(45deg); }
+.lightbox-close span::after { content: ''; position: absolute; transform: rotate(90deg); }
+.lightbox-step { top: 50%; margin-top: -24px; }
+.lightbox-step.previous { left: 18px; }
+.lightbox-step.next { right: 18px; }
+.lightbox-step span { width: 12px; height: 12px; border: solid var(--text); border-width: 2px 2px 0 0; transform: translateX(-2px) rotate(45deg); }
+.lightbox-step.previous span { transform: translateX(2px) rotate(225deg); }
+/* On a phone the picture or film starts below the close button, so the button never covers the film's own controls. */
+@media (max-width: 700px) {
+  .lightbox-media { height: min(68vh, 820px); height: min(68dvh, 820px); margin-top: calc(76px + env(safe-area-inset-top, 0px)); }
+  .lightbox-step { top: auto; bottom: 22px; margin: 0; }
+  .lightbox-caption { margin-bottom: 84px; padding: 0 20px; }
+}
+
+/* ---- Get GrocGo: the App Store, sharing and the accounts, in one card the page ends on ---- */
+.home > .get { padding-bottom: 40px; }
+.get-card {
+  position: relative; max-width: 900px; margin: 0 auto; padding: clamp(44px, 7vw, 76px) clamp(22px, 5vw, 56px) clamp(32px, 5vw, 48px);
+  border-radius: calc(var(--panel-radius) + 8px); text-align: center; overflow: hidden; border: 1px solid var(--hairline-strong);
+  background: var(--panel);
 }
 @keyframes ring { to { --ring-angle: 570deg; } }
-.support small { color: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; }
-.support strong { color: var(--accent); font-size: clamp(17px, 4.6vw, 20px); font-weight: 500; }
-.support:hover strong, .support:focus-visible strong { color: #FF8A3D; }
+.app-icon { display: block; width: clamp(96px, 12vw, 120px); height: auto; margin: 0 auto 28px; border-radius: 23%; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 18px 44px rgba(0, 0, 0, 0.55); }
+.get-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px; margin-top: 34px; }
+.store-button {
+  display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; min-height: 68px; padding: 0 34px 0 66px;
+  border-radius: 20px; color: var(--on-accent); text-decoration: none; line-height: 1.15; position: relative;
+  background: linear-gradient(180deg, var(--accent-light), var(--accent)); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+/* A download arrow into a tray stands where a store's badge puts its logo. */
+.store-button::before { content: ''; position: absolute; left: 26px; top: 50%; width: 26px; height: 26px; margin-top: -13px; background: var(--on-accent); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3v12m0 0l-5-5m5 5l5-5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3v12m0 0l-5-5m5 5l5-5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+a.store-button:hover { transform: translateY(-2px); }
+.store-button small { font-size: 13px; font-weight: 500; }
+.store-button strong { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+span.store-button { cursor: default; }
+/* Android, coming soon: a quiet dark key with the Android robot where the iOS key has its arrow. */
+.store-button.android { color: var(--text); background: var(--tile); border: 1px solid var(--hairline-strong); box-shadow: none; }
+.store-button.android::before { content: none; }
+.store-button.android svg { position: absolute; left: 24px; top: 50%; width: 28px; height: 28px; margin-top: -14px; fill: #3DDC84; }
+.store-button.android small { color: var(--quiet); }
+.share { min-height: 68px; padding: 0 28px; border-radius: 20px; }
+.share::before { content: ''; width: 20px; height: 20px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M7 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M7 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+.share-status { min-height: 1.6em; margin: 14px 0 0; color: var(--quiet); font-size: 15px; }
+.follow { margin-top: 22px; padding-top: 30px; border-top: 1px solid var(--hairline); }
+.follow h3 { margin: 0 0 18px; color: var(--eyebrow); font-size: 13px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.socials { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.social {
+  display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 20px; text-align: left; text-decoration: none; color: var(--text);
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--hairline-strong); transition: background-color 0.2s, transform 0.2s;
+}
+a.social:hover { background: rgba(255, 255, 255, 0.09); transform: translateY(-2px); }
+.social svg { flex: none; width: 44px; height: 44px; padding: 11px; border-radius: 14px; fill: #fff; }
+.social.instagram svg { background: radial-gradient(circle at 30% 110%, #FFD776 0%, #F3A64C 18%, #E13A6D 52%, #A23BBF 78%, #5B4BD5 100%); }
+.social.tiktok svg { background: #000; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.social.facebook svg { background: #1877F2; }
+.social span { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.social strong { font-size: 16px; font-weight: 700; }
+.social small { overflow: hidden; color: var(--quiet); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.social.is-soon { opacity: 0.55; }
+.get-support { margin: 30px 0 0; color: var(--muted); font-size: 15px; }
+.get-support a { color: var(--accent); font-weight: 500; text-decoration: none; }
+.get-support a:hover { color: var(--accent-light); }
+@media (max-width: 640px) {
+  .socials { grid-template-columns: minmax(0, 1fr); }
+  /* Stacked on a phone, the three keys share one width. */
+  .get-actions { flex-direction: column; align-items: stretch; width: min(300px, 100%); margin-left: auto; margin-right: auto; }
+}
 
 /* ---- A page of text (the privacy policy) ---- */
 .doc { flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: calc(40px + env(safe-area-inset-top, 0px)) 24px 24px; }
@@ -232,11 +590,12 @@ html { background-color: var(--canvas); }
 .doc ul { padding-left: 22px; }
 .doc .date { color: var(--muted); font-size: 15px; }
 
-footer { padding: 16px 24px calc(24px + env(safe-area-inset-bottom, 0px)); color: var(--muted); font-size: 14px; text-align: center; }
+footer { padding: 36px 24px calc(28px + env(safe-area-inset-bottom, 0px)); color: var(--muted); font-size: 14px; text-align: center; }
 footer a { margin: 0 10px; color: var(--quiet); text-decoration: none; white-space: nowrap; }
 footer a:hover { color: var(--text); }
 footer p { margin: 10px 0 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; }
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; }
 }
