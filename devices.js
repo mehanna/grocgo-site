@@ -48,9 +48,6 @@ const FIELD_OF_VIEW = 26;
 
 /** The iPhone 18 Pro Max: body, glass and screen (its 1320 x 2868 pixels). */
 const IPHONE = { width: 0.776, depth: 0.083, radius: 0.125, bevel: 0.022, bezel: 0.018, screenAspect: 1320 / 2868 };
-/** How dark the Duo's open screen gets as it folds shut (0-1, at fully shut): the half that swings over, the half
- * that stays, and the shadow along the fold. */
-const FOLD_SHADOW = { swinging: 0.55, staying: 0.2, crease: 0.85 };
 /** iPhone Duo: two halves on a hinge; the open screen is 2853 x 2007 across both, the cover screen 1398 x 2034. */
 const DUO = { halfWidth: 0.9875, height: 1.4, depth: 0.042, gap: 0.004, radius: 0.12, bevel: 0.014, bezel: 0.018, coverAspect: 1398 / 2034 };
 
@@ -255,8 +252,21 @@ const CHANGES = {
 // half; where the next picture has moved off that part, the current one shows.
 const SCREEN_VERTEX_SHADER = `
 varying vec2 vUv;
+#ifdef FOLDING_GLASS
+uniform vec2 hingeTurn;
+uniform vec3 glassEye;
+varying vec3 vProjection;
+varying float vLift;
+#endif
 void main() {
   vUv = uv;
+  #ifdef FOLDING_GLASS
+    // Trace the view through the moving glass to the flat, stationary app image.
+    float edge = 2.0 * (0.5 - uv.x);
+    vLift = edge * hingeTurn.y;
+    vec2 folded = vec2(0.5 - 0.5 * edge * hingeTurn.x, uv.y);
+    vProjection = vec3(folded * glassEye.z - glassEye.xy * vLift, glassEye.z - vLift);
+  #endif
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 const SCREEN_FRAGMENT_SHADER = `
@@ -268,36 +278,73 @@ uniform float brightness;
 uniform vec2 pane;
 uniform float shade;
 uniform float crease;
-uniform float shadowReach;
 varying vec2 vUv;
+#ifdef FOLDING_GLASS
+uniform vec3 glassEye;
+varying vec3 vProjection;
+varying float vLift;
+
+// The texture already has a pyramid of filtered copies. Four nearby mip samples give the glass a soft,
+// continuous blur without rendering or blurring the whole canvas a second time.
+vec3 diffusePicture(sampler2D picture, vec2 at, float radius) {
+  vec2 size = vec2(textureSize(picture, 0));
+  vec2 spread = radius / size;
+  float level = log2(max(1.0, radius * 0.85));
+  vec2 a = vec2(0.55, 0.24) * spread;
+  vec2 b = vec2(-0.24, 0.55) * spread;
+  return 0.25 * (textureLod(picture, at + a, level).rgb + textureLod(picture, at - a, level).rgb
+               + textureLod(picture, at + b, level).rgb + textureLod(picture, at - b, level).rgb);
+}
+#endif
 void main() {
-  vec4 color = texture2D(current, vUv);
-  vec2 from = vec2(vUv.x - offset, vUv.y);
-  if (amount > 0.0 && from.x >= pane.x && from.x <= pane.y) color = mix(color, texture2D(next, from), amount);
-  // Folding, a Duo screen falls into shadow: all of it by shade, and most of all along the fold (u = 0.5), where the
-  // two halves close over each other, by crease. Open flat, and on every other screen, both are 0.
+  vec2 at = vUv;
+  #ifdef FOLDING_GLASS
+    // When the viewer turns the phone edge-on, ease back to its own image coordinates.
+    float frontView = smoothstep(0.45, 1.65, glassEye.z);
+    vec2 projected = vProjection.xy / max(0.15, vProjection.z);
+    at = mix(at, clamp(projected, 0.0, 1.0), frontView);
+  #endif
+  vec3 color = texture2D(current, at).rgb;
+  vec2 from = vec2(at.x - offset, at.y);
+  bool changing = amount > 0.0 && from.x >= pane.x && from.x <= pane.y;
+  if (changing) color = mix(color, texture2D(next, from).rgb, amount);
+  #ifdef FOLDING_GLASS
+    if (vLift > 0.0005) {
+      // Distance above the image increases towards the outer edge. The hinge comes into focus first.
+      float frost = smoothstep(0.0, 0.105, vLift);
+      float radius = 0.068 * float(textureSize(current, 0).x) * pow(vLift, 0.78);
+      vec3 soft = diffusePicture(current, at, radius);
+      if (changing) soft = mix(soft, diffusePicture(next, from, radius), amount);
+      float edge = 2.0 * (0.5 - vUv.x);
+      float sheen = 1.0 - smoothstep(0.0, 0.64, abs(vUv.y - 0.65 + 0.22 * edge - 0.16 * vLift));
+      vec3 glassLight = mix(vec3(0.035, 0.024, 0.018), vec3(0.044, 0.064, 0.09), sheen);
+      soft = soft * (1.0 - 0.42 * edge * frost) + glassLight * (0.35 + 0.65 * sqrt(vLift));
+      color = mix(color, soft, frost);
+    }
+  #endif
   float light = brightness * (1.0 - shade);
   if (crease > 0.0) {
     float distanceFromFold = 2.0 * abs(vUv.x - 0.5);
-    light *= 1.0 - crease * exp(-distanceFromFold / 0.28);
-    // The swinging half casts a soft-edged shadow on the stationary display. Its edge retreats to the hinge.
-    float penumbra = 0.12 + 0.16 * shadowReach;
-    float covered = 1.0 - smoothstep(shadowReach - penumbra, shadowReach + penumbra, distanceFromFold);
-    light *= 1.0 - 0.72 * smoothstep(0.0, 0.32, shadowReach) * covered;
+    light *= 1.0 - crease * (1.0 - smoothstep(0.0, 0.065, distanceFromFold));
   }
-  gl_FragColor = vec4(color.rgb * light, 1.0);
+  gl_FragColor = vec4(color * light, 1.0);
   #include <colorspace_fragment>
 }`;
 
-/** One lit screen: the picture, with no glare over it, and the change from one picture to the next (CHANGES). */
+/** One lit screen and its picture transitions. Only the Duo's swinging inner screen uses the glass shader. */
 class Screen {
-  constructor(geometry, library, pane = [0, 1]) {
+  constructor(geometry, library, pane = [0, 1], foldingGlass = false) {
     this.library = library;
     this.uniforms = {
       current: { value: new Texture() }, next: { value: new Texture() }, amount: { value: 0 }, offset: { value: 0 },
-      brightness: { value: 0 }, pane: { value: new Vector2(pane[0], pane[1]) }, shade: { value: 0 }, crease: { value: 0 }, shadowReach: { value: 0 },
+      brightness: { value: 0 }, pane: { value: new Vector2(pane[0], pane[1]) }, shade: { value: 0 }, crease: { value: 0 },
     };
-    this.material = new ShaderMaterial({ uniforms: this.uniforms, vertexShader: SCREEN_VERTEX_SHADER, fragmentShader: SCREEN_FRAGMENT_SHADER });
+    if (foldingGlass) {
+      this.uniforms.hingeTurn = { value: new Vector2(1, 0) };
+      this.uniforms.glassEye = { value: new Vector3() };
+    }
+    this.material = new ShaderMaterial({ defines: foldingGlass ? { FOLDING_GLASS: 1 } : {},
+      uniforms: this.uniforms, vertexShader: SCREEN_VERTEX_SHADER, fragmentShader: SCREEN_FRAGMENT_SHADER });
     this.object = new Group();
     this.object.add(new Mesh(geometry, this.material));
     this.brightness = 0;
@@ -499,7 +546,7 @@ function buildDuo(materials, library) {
   const leftGlass = new Mesh(glass(LEFT_HALF_CORNERS), materials.glass);
   leftGlass.position.set(-width / 2 + glassInset / 2, 0, -gap / 2 + LAYER);
   hinge.add(leftBody, leftGlass);
-  const innerLeft = new Screen(faceGeometry({ width: innerWidth, height: innerHeight, radius: radius - bezel, corners: LEFT_HALF_CORNERS, uv: [0, 0, 0.5, 1] }), library, [0, 0.5]);
+  const innerLeft = new Screen(faceGeometry({ width: innerWidth, height: innerHeight, radius: radius - bezel, corners: LEFT_HALF_CORNERS, uv: [0, 0, 0.5, 1] }), library, [0, 0.5], true);
   innerLeft.object.position.set(-innerWidth / 2, 0, -gap / 2 + 2 * LAYER);
   hinge.add(innerLeft.object);
   // The cover: black glass and its screen on the left half's back.
@@ -518,8 +565,8 @@ function buildDuo(materials, library) {
   hinge.position.z = depth / 2 + gap / 2;
   group.add(hinge);
 
-  // The spine: flush with the halves when open, wrapping both of them when shut.
-  const spine = new Mesh(new CylinderGeometry(1, 1, height * 0.96, 40), materials.frame);
+  // The outside of the spine wraps between the two back edges. Its barrel stays behind the display.
+  const spine = new Mesh(new CylinderGeometry(1, 1, height * 0.96, 32, 1, false, Math.PI / 2, Math.PI), materials.frame);
   spine.geometry.computeBoundingBox();
   group.add(spine);
   // The crease: a dark line under the seam where the two halves of the open screen meet, so the lit metal of the
@@ -529,11 +576,15 @@ function buildDuo(materials, library) {
   group.add(crease);
 
   function setFold(fold) {
-    const shut = MathUtils.clamp(fold / Math.PI, 0, 1);
     hinge.rotation.y = fold;
-    const spineRadius = MathUtils.lerp(depth / 2, depth + gap / 2, shut);
-    spine.scale.set(spineRadius, 1, spineRadius);
-    spine.position.z = MathUtils.lerp(0, depth / 2 + gap / 2, shut);
+    const halfAngle = fold / 2;
+    const sine = Math.sin(halfAngle), cosine = Math.cos(halfAngle);
+    const radius = depth + gap / 2;
+    // The chord joins the backs; the rounded part bulges out from its midpoint as the phone closes.
+    spine.rotation.y = halfAngle;
+    spine.position.set(-radius * sine * cosine, 0, hinge.position.z - radius * cosine * cosine);
+    spine.scale.set(Math.max(0.0001, radius * sine), 1, Math.max(0.0001, radius * (1 - cosine)));
+    spine.visible = fold > 0.001;
   }
   setFold(0);
   const part = new Box3();
@@ -789,7 +840,7 @@ export class DuoStage extends Stage {
     this.holder = new Group();
     this.holder.add(this.duo.group);
     this.scene.add(this.holder);
-    this.open = new Eased(0, REDUCED_MOTION ? 60 : 3);
+    this.fold = 0;
     this.roll = new Eased(0);
     this.yaw = new Eased(-0.3);
     this.pitch = new Eased(0.08);
@@ -799,14 +850,9 @@ export class DuoStage extends Stage {
     this.boundsSize = new Vector3();
   }
 
-  setFold(open, { instantly = false } = {}) {
-    if (instantly) this.open.snap(open);
-    else this.open.target = open;
+  setFold(open) {
+    this.fold = open;
     wake();
-  }
-
-  get fold() {
-    return this.open.value;
   }
 
   setPosture({ cover, laptop = false, yaw = -0.3, pitch = 0.08, zoom = 1 }) {
@@ -830,9 +876,8 @@ export class DuoStage extends Stage {
   }
 
   update(seconds, time) {
-    const open = this.open.step(seconds);
     const roll = this.roll.step(seconds);
-    const fold = (1 - open) * Math.PI;
+    const fold = (1 - this.fold) * Math.PI;
     this.duo.setFold(fold);
     const { halfWidth } = this.duo;
     // Keep the device centred as the left half swings over: open it spans both halves, shut only the right one.
@@ -851,15 +896,16 @@ export class DuoStage extends Stage {
     // Measured from the device's nearest face, so its nearer parts, drawn larger, still fit.
     this.camera.position.set(this.boundsCentre.x, this.boundsCentre.y, this.bounds.max.z + distance);
     this.camera.lookAt(this.boundsCentre.x, this.boundsCentre.y, this.bounds.max.z);
-    // The shadow of folding: nothing open flat, deepening as the halves close. The half that swings over darkens more
-    // than the half that stays; both darken along the fold.
-    const closing = Math.sin(fold / 2);
     const { innerLeft, innerRight, cover } = this.duo.screens;
-    innerLeft.uniforms.shade.value = FOLD_SHADOW.swinging * closing;
-    innerRight.uniforms.shade.value = FOLD_SHADOW.staying * closing;
-    innerLeft.uniforms.crease.value = FOLD_SHADOW.crease * closing;
-    innerRight.uniforms.crease.value = FOLD_SHADOW.crease * closing;
-    innerRight.uniforms.shadowReach.value = closing * closing;
+    // Express the camera in the flat screen's UV coordinates, with depth in half-screen widths.
+    const eye = this.duo.group.worldToLocal(innerLeft.uniforms.glassEye.value.copy(this.camera.position));
+    const screenWidth = halfWidth - DUO.bezel;
+    eye.set(0.5 + eye.x / (2 * screenWidth), 0.5 + eye.y / (DUO.height - 2 * DUO.bezel),
+      (eye.z - DUO.depth / 2 - 2 * LAYER) / screenWidth);
+    // The horizontal cooking posture is a working screen, so let the book-opening effect settle as it turns.
+    const book = Math.max(0, 1 - Math.abs(roll) / (Math.PI / 2));
+    innerLeft.uniforms.hingeTurn.value.set(MathUtils.lerp(1, Math.cos(fold), book), Math.sin(fold) * book);
+    innerLeft.uniforms.crease.value = innerRight.uniforms.crease.value = 0.28 * Math.sin(fold / 2);
     cover.uniforms.shade.value = 0.38 * Math.sin(fold);
     innerLeft.update(seconds);
     innerRight.update(seconds);

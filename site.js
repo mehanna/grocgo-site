@@ -97,65 +97,66 @@ function phoneDisplay(container, devices, { margin, onFirstPicture } = {}) {
 }
 
 function duoDisplay(container, devices, { margin } = {}) {
-  const flat = container.querySelector('.flat-phone img');
   if (devices) {
     try {
       const canvas = container.querySelector('canvas');
       const stage = new devices.DuoStage(canvas, { margin });
-      stage.duo.screens.innerRight.onFirstPicture = () => container.classList.add('is-3d');
+      let fallback, posture, picture;
+      stage.duo.screens.innerRight.onFirstPicture = () => {
+        if (!container.classList.contains('is-flat')) container.classList.add('is-3d');
+      };
       watchDrawing(container, canvas);
+      canvas.addEventListener('webglcontextlost', () => {
+        fallback ??= flatDuoDisplay(container);
+        if (posture) fallback.setPosture(posture);
+        if (picture) fallback.showInner(picture);
+        fallback.setFold(stage.fold);
+      });
       return {
         stage,
-        setPosture: (posture) => stage.setPosture(posture),
-        showInner: (name, change) => stage.showInner(name, change),
-        setFold: (open, options) => stage.setFold(open, options),
-        openAmount: () => stage.fold,
+        setPosture(next) { posture = next; stage.setPosture(next); fallback?.setPosture(next); },
+        showInner(name, change) { picture = name; stage.showInner(name, change); fallback?.showInner(name); },
+        setFold(open) { stage.setFold(open); fallback?.setFold(open); },
       };
     } catch (error) {
       console.warn('[GrocGo site] the 3D iPhone Duo could not start; showing the flat screen', error);
     }
   }
   useFlatScreen(container);
-  // Flat: the cover screen while it is more shut than open, the open screen after.
+  return flatDuoDisplay(container);
+}
+
+function flatDuoDisplay(container) {
+  const flat = container.querySelector('.flat-phone img');
   const frame = flat.parentElement;
-  let cover = null;
-  let inner = null;
+  const surface = document.createElement('span');
+  surface.className = 'duo-flat-screen';
+  const glass = document.createElement('span');
+  glass.className = 'duo-flat-glass';
+  glass.setAttribute('aria-hidden', 'true');
+  const diffuse = new Image();
+  diffuse.alt = '';
+  glass.append(diffuse);
+  flat.before(surface);
+  surface.append(flat, glass);
+  let cover, inner, cooking;
   let open = 0;
-  let animation = 0;
   const draw = () => {
     const onCover = open < 0.5 && Boolean(cover);
     const name = onCover ? cover : inner;
     frame.classList.toggle('is-cover', onCover);
-    const shadow = Math.cos(open * Math.PI / 2) ** 2;
-    frame.style.setProperty('--shadow-reach', shadow.toFixed(3));
+    const lift = Math.sin(Math.PI * open);
+    glass.style.opacity = onCover || cooking || open === 1 ? '0' : String(Math.min(1, 2.9 * lift));
     if (name && flat.dataset.screen !== name) {
       flat.dataset.screen = name;
       flat.src = assetUrl(`screens/${name}.webp`);
     }
   };
-  function setFold(next, { instantly = false } = {}) {
-    cancelAnimationFrame(animation);
-    if (instantly || matchMedia('(prefers-reduced-motion: reduce)').matches || next === open) {
-      open = next;
-      draw();
-      return;
-    }
-    const from = open;
-    const start = performance.now();
-    function move(now) {
-      const t = Math.min(1, (now - start) / 550);
-      open = from + (next - from) * t * t * (3 - 2 * t);
-      draw();
-      if (t < 1) animation = requestAnimationFrame(move);
-    }
-    animation = requestAnimationFrame(move);
-  }
   return {
     stage: null,
-    setPosture: (posture) => { cover = posture.cover ?? null; draw(); },
-    showInner: (name) => { inner = name; draw(); },
-    setFold,
-    openAmount: () => open,
+    setPosture(posture) { cover = posture.cover; cooking = posture.laptop; draw(); },
+    showInner(name) { inner = name; diffuse.src = assetUrl(`screens/${name}.webp`); draw(); },
+    setFold(value) { open = value; draw(); },
   };
 }
 
@@ -423,14 +424,33 @@ function setupDuo(devices) {
   let run = { live: false };
   let visible = false;
   let manual = false;
+  let open = 0;
+  let foldTarget = 0;
+  let foldFrame = 0;
 
-  /** Keeps the slider's knob on the Duo's hinge while the loop moves it. */
-  const followFold = (current) => {
-    if (!current.live) return;
-    const value = String(Math.round(display.openAmount() * SLIDER_MAX));
+  function drawFold(amount) {
+    open = amount;
+    display.setFold(amount);
+    const value = String(Math.round(amount * SLIDER_MAX));
     if (slider.value !== value) slider.value = value;
-    requestAnimationFrame(() => followFold(current));
-  };
+  }
+
+  // Both renderers and the slider use the same hinge position. Dragging goes directly to the finger.
+  function moveFold(target, instantly = false) {
+    cancelAnimationFrame(foldFrame);
+    foldFrame = 0;
+    foldTarget = target;
+    if (instantly || REDUCED_MOTION || target === open) return drawFold(target);
+    const from = open;
+    const start = performance.now();
+    const duration = LOOP_MS.unfold * Math.sqrt(Math.abs(target - from));
+    function frame(now) {
+      const t = Math.min(1, (now - start) / duration);
+      drawFold(t === 1 ? target : from + (target - from) * t * t * (3 - 2 * t));
+      foldFrame = t < 1 ? requestAnimationFrame(frame) : 0;
+    }
+    foldFrame = requestAnimationFrame(frame);
+  }
 
   /** The loop for the current stop; it stops when another stop is picked or the slider is dragged. */
   async function play() {
@@ -440,21 +460,19 @@ function setupDuo(devices) {
     const [full, split] = posture.inner;
     if (posture.laptop || REDUCED_MOTION) {
       display.showInner(full);
-      display.setFold(posture.laptop ? HALF_OPEN : 1);
-      slider.value = String(SLIDER_MAX);
+      moveFold(posture.laptop ? HALF_OPEN : 1);
       return;
     }
-    followFold(current);
     const step = async (milliseconds) => { await wait(milliseconds); return current.live; };
     while (current.live) {
       // Fold shut first, unless it already is (the first time round).
-      if (display.openAmount() > 0.02) {
-        display.setFold(0);
+      if (open > 0.02) {
+        moveFold(0);
         if (!(await step(LOOP_MS.fold))) return;
       }
       display.showInner(full);
       if (!(await step(LOOP_MS.shut))) return;
-      display.setFold(1);
+      moveFold(1);
       if (!(await step(LOOP_MS.unfold + LOOP_MS.full))) return;
       if (split) {
         display.showInner(split, 'open');
@@ -467,7 +485,9 @@ function setupDuo(devices) {
 
   function syncPlayback() {
     run.live = false;
-    if (visible && !document.hidden && !manual) play();
+    if (!visible || document.hidden) {
+      if (foldFrame) moveFold(foldTarget, true);
+    } else if (!manual) play();
   }
 
   setupExplorer(explorer, {
@@ -475,6 +495,7 @@ function setupDuo(devices) {
     onOpen: (index, body) => {
       posture = postures[index];
       display.setPosture(posture);
+      display.showInner(posture.inner[0]);
       fold.hidden = Boolean(posture.laptop);
       body.append(fold);
       manual = false;
@@ -486,16 +507,13 @@ function setupDuo(devices) {
   slider.addEventListener('input', () => {
     manual = true;
     run.live = false;
-    display.setFold(sliderOpen());
+    moveFold(sliderOpen(), true);
   });
   slider.addEventListener('change', () => {
     const settled = sliderOpen() < 0.5 ? 0 : 1;
-    slider.value = String(settled * SLIDER_MAX);
-    display.setFold(settled);
+    moveFold(settled);
   });
-  display.showInner(posture.inner[0]);
-  display.setFold(0, { instantly: true });
-  slider.value = '0';
+  moveFold(0, true);
   new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting;
     syncPlayback();

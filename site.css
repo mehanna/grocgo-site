@@ -195,7 +195,7 @@ button { font: inherit; color: inherit; }
 [data-device="tour"] canvas, [data-device="duo"] canvas { cursor: grab; }
 .flat-phone {
   position: absolute; left: 50%; top: 50%; height: 84%; aspect-ratio: 1320 / 2868; transform: translate(-50%, -50%);
-  padding: 1.4%; border-radius: 13% / 6%; background: #0b0b0d; border: 3px solid #3c3c43;
+  box-sizing: content-box; padding: 2px; border-radius: calc(11% + 2px) / calc(5.2% + 2.5px); background: #0b0b0d; border: 1px solid #3c3c43;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55); transition: opacity 0.8s ease;
 }
 .flat-phone img { display: block; width: 100%; height: 100%; border-radius: 11% / 5.2%; object-fit: cover; }
@@ -203,16 +203,20 @@ button { font: inherit; color: inherit; }
    (site.js useFlatScreen): shown together, two phones of different sizes and turns overlap. */
 .js .device .flat-phone, .device.is-3d .flat-phone { opacity: 0; }
 .js .device.is-flat .flat-phone { opacity: 1; }
-.device-duo .flat-phone { height: auto; width: 88%; aspect-ratio: 2853 / 2007; border-radius: 6%; }
+.device-duo .flat-phone { height: auto; width: 88%; aspect-ratio: 2853 / 2007; border-radius: calc(4.6% + 2.5px); }
 .device-duo .flat-phone img { border-radius: 4.6%; }
 .device-duo.is-flat .flat-phone { overflow: hidden; }
 .device-duo.is-flat .flat-phone.is-cover { width: auto; height: 86%; aspect-ratio: 1398 / 2034; }
-.device-duo.is-flat .flat-phone::after {
-  content: ''; position: absolute; inset: 0 0 0 50%; pointer-events: none; transform-origin: left;
-  background: linear-gradient(90deg, rgba(0, 0, 0, .82), rgba(0, 0, 0, .56) 62%, transparent);
-  transform: scaleX(var(--shadow-reach, 0));
+.duo-flat-screen { display: block; position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 4.6%; }
+.duo-flat-glass {
+  position: absolute; inset: 0 50% 0 0; overflow: hidden; pointer-events: none; opacity: 0;
+  mask-image: linear-gradient(90deg, #000 0% 72%, transparent);
 }
-.device-duo.is-flat .flat-phone.is-cover::after { visibility: hidden; }
+.device-duo .duo-flat-glass img { width: 200%; max-width: none; border-radius: 0; filter: blur(clamp(5px, 1vw, 12px)); }
+.duo-flat-glass::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(155deg, rgba(41, 54, 71, .58), rgba(70, 89, 109, .32) 47%, rgba(36, 27, 25, .48));
+}
 
 /* ---- The opening: pinned for its first stretch of scrolling (site.js sets --hero-progress, 0 to 1) ---- */
 .home > .hero { max-width: none; height: 160vh; height: 160svh; padding: 0; }
@@ -220,7 +224,7 @@ button { font: inherit; color: inherit; }
 .device-hero { position: absolute; inset: 0; }
 .device-hero canvas { cursor: grab; transition-duration: .18s; }
 .device-hero .flat-phone {
-  top: var(--opening-centre, 72%); height: var(--opening-height, 48%); padding: 3px;
+  top: var(--opening-centre, 72%); height: var(--opening-height, 48%);
   transform: translate(-50%, -50%) perspective(1100px) rotateY(-15deg) rotateZ(-3deg);
 }
 .hero-copy {
@@ -303,12 +307,10 @@ button { font: inherit; color: inherit; }
   .films li { flex: none; width: min(64vw, 260px); scroll-snap-align: center; }
 }
 
-/* ---- A phone drawn flat (the walk-in and the share steps): its screens stacked in one grid cell, each later one over
-   the one before. The bezel is padding, which is a share of the width on every side, so it is as thick at the top and
-   bottom as at the sides; the screens keep the phone's own shape inside it. ---- */
+/* The Walk In and Share screens overlap in one grid cell. Keep the rim independent of the surrounding column. */
 .mini-phone {
-  position: relative; display: grid; padding: 2.2%; border-radius: 15% / 7%; background: #0b0b0d;
-  border: 2px solid #46464d; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  position: relative; display: grid; padding: 2px; border-radius: calc(13% + 2px) / calc(6% + 2.5px); background: #0b0b0d;
+  border: 1px solid #46464d; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
 }
 .mini-phone img { grid-area: 1 / 1; display: block; width: 100%; height: auto; aspect-ratio: 1320 / 2868; border-radius: 13% / 6%; object-fit: cover; transition: opacity 0.5s ease; }
 .mini-phone .screen-1 { opacity: 0; }
